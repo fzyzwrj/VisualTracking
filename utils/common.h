@@ -21,8 +21,6 @@
 
 #define SHOW_WAIT(winName, img) \
 	do {\
-		cv::namedWindow(#img);\
-		cv::moveWindow(#img, 0, 0);\
 		cv::imshow(winName, img);\
 		char ch = cv::waitKey(10);\
 		if (toupper(ch) == 'Q')\

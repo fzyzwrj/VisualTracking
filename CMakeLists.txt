@@ -15,3 +15,5 @@ add_subdirectory(KCF)
 add_subdirectory(LineDetect)
 
 add_subdirectory(TreeDetect)
+
+add_subdirectory(Track)
