@@ -11,4 +11,4 @@ endif (NOT WIN32)
 aux_source_directory(./src DIR_SRCS)
 
 add_executable(KCF ${DIR_SRCS})
-target_link_libraries (KCF ${OpenCV_LIBS})
+target_link_libraries (KCF ${OpenCV_LIBS} utils)

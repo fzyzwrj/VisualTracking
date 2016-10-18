@@ -183,7 +183,7 @@ cv::Rect KCFTracker::update(cv::Mat image)
 
     float peak_value;
     cv::Point2f res = detect(_tmpl, getFeatures(image, 0, 1.0f), peak_value);
-
+	std::cout << peak_value << std::endl;
     if (scale_step != 1) {
         // Test at a smaller _scale
         float new_peak_value;

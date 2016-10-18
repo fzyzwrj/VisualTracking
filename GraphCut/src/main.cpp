@@ -4,6 +4,8 @@
 
 #include <iostream>
 
+#include "common.h"
+
 using namespace std;
 using namespace cv;
 
@@ -27,12 +29,6 @@ static void help()
 		"\tCTRL+right mouse button - set GC_PR_BGD pixels\n"
 		"\tSHIFT+right mouse button - set CG_PR_FGD pixels\n" << endl;
 }
-
-const Scalar RED = Scalar(0, 0, 255);
-const Scalar PINK = Scalar(230, 130, 255);
-const Scalar BLUE = Scalar(255, 0, 0);
-const Scalar LIGHTBLUE = Scalar(255, 255, 160);
-const Scalar GREEN = Scalar(0, 255, 0);
 
 const int BGD_KEY = CV_EVENT_FLAG_CTRLKEY;  //Ctrl¼ü
 const int FGD_KEY = CV_EVENT_FLAG_SHIFTKEY; //Shift¼ü

@@ -2,10 +2,11 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#define SHOW(img) \
-	do { \
-		cv::imshow(#img, img);\
-	} while (0)
+//#define SHOW(img) \
+//	do { \
+//		cv::imshow(#img, img);\
+//	} while (0)
+#include "common.h"
 
 const bool adaptive_minsv = true;  // 自适应颜色过滤阈值
 

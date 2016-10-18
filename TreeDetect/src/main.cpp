@@ -5,14 +5,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <string>
 
+#include "common.h"
+
 #include "TreeDetect.h"
 
-#define SHOW(img) \
-	do { \
-		cv::namedWindow(#img);\
-		cv::moveWindow(#img, 0, 0);\
-		cv::imshow(#img, img);\
-	} while (0)
 
 int main()
 {
