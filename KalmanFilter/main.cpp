@@ -13,7 +13,7 @@
 
 int main()
 {
-	const std::string posFilename = "C:\\3rdParty\\source\\Exercise\\res\\4.txt";
+	const std::string posFilename = "C:\\3rdParty\\source\\Exercise\\res\\16.txt";
 	const int scale = 4;
 	std::vector<cv::Rect> vecTrackPos;	// ¸ú×ÙµÄ¹ì¼£
 	std::vector<int> vecFrameIndex;
@@ -26,7 +26,7 @@ int main()
 	CKalManFilter KF;
 
 	cv::Rect initTrack = vecTrackPos[0];
-	KF.init(initTrack.x, initTrack.y, -5 / scale, 12 / scale);
+	KF.init(initTrack.x, initTrack.y, -5.0 / scale, 12.0 / scale);
 
 	for (auto it = vecTrackPos.cbegin() + 1; it != vecTrackPos.cend(); ++it) {
 		cv::Point measurePt(it->x, it->y);

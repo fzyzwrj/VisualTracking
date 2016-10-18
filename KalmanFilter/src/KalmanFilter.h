@@ -13,17 +13,18 @@ public:
 			0, 0, 1, 0, \
 			0, 0, 0, 1);
 		cv::setIdentity(KF.measurementMatrix);
-		cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-3));	// 由噪声矩阵可以产生噪声processNoise
-		cv::setIdentity(KF.measurementNoiseCov, cv::Scalar::all(1));
+		cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-5));	// 由噪声矩阵可以产生噪声processNoise
+		cv::setIdentity(KF.measurementNoiseCov, cv::Scalar::all(1e-1));
 		cv::setIdentity(KF.errorCovPost, cv::Scalar::all(1));
 	}
 
-	void init(int x, int y, int dx, int dy)
+	void init(float x, float y, float dx, float dy)
 	{
 		// 参数需要细调，尤其dx, dy
-		state = *(cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
-		KF.statePost = *(cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
-		cv::randn(KF.statePost, cv::Scalar::all(0), cv::Scalar::all(0.1));
+		cv::Mat state = *(cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
+		//KF.statePost = (cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
+		cv::randn(KF.statePost, cv::Scalar::all(0), cv::Scalar::all(1e-1));
+		KF.statePost += state;
 	}
 
 	cv::Point2f predict(int x = -1, int y = -1)
@@ -48,7 +49,7 @@ public:
 		cv::Point2f measurePt(measurement.at<float>(0), measurement.at<float>(1));
 
 		// update
-		if (cv::theRNG().uniform(0, 4))
+		//if (cv::theRNG().uniform(0, 4))
 			KF.correct(measurement);
 		cv::randn(processNoise, cv::Scalar::all(0), cv::Scalar::all(sqrt(KF.processNoiseCov.at<float>(0, 0))));
 

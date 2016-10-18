@@ -100,6 +100,14 @@ public:
     // Update position based on the new frame
     virtual cv::Rect update(cv::Mat image);
 
+	// 将以上update拆成两上部分，检测与训练
+	cv::Rect updateWithoutTrain(const cv::Mat &image, float &peak);
+	void updateTrain(const cv::Mat &image);
+	void setROI(int x, int y, const cv::Mat &frame);
+	cv::Rect _extracted_roi;
+
+
+
 	cv::Rect update(cv::Mat image, float &peak);
 
     float interp_factor; // linear interpolation factor for adaptation

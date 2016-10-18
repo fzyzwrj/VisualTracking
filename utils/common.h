@@ -44,6 +44,7 @@ const cv::Scalar PINK(230, 130, 255);
 const cv::Scalar BLUE(255, 0, 0);
 const cv::Scalar LIGHTBLUE(255, 255, 160);
 const cv::Scalar GREEN(0, 255, 0);
+const cv::Scalar YELLOW(0, 255, 255);
 
 
 #endif /* COMMON_H__ */
