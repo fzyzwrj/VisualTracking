@@ -11,6 +11,7 @@
 #include "KalmanFilter.h"
 #include "TreeDetect.h"
 #include "LineDetect.h"
+#include "CMap.h"
 
 //// 给定点，转换成GPS点
 //double convertToGSP(const cv::Point2d &centerGPS, cv::Point2d pt, const cv::Size &sz)
@@ -104,7 +105,7 @@ static void onMouse(int event, int x, int y, int flag, void *)
 
 int main(int argc, char *argv[])
 {
-	freopen("res.txt", "w", stdout);
+	//freopen("res.txt", "w", stdout);
 	const std::string videoFilename = "G:\\resources\\videos\\DJI_0002.MOV";
 	cv::VideoCapture cap(videoFilename);
 	assert(cap.isOpened());
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
 	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
 	const std::string markedMapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
 
-	CMap m(mapFilename, coordinateFilename, 1 << 1, markedMapFilename);
+	CMap m(mapFilename, coordinateFilename, markedMapFilename);
 	std::vector<cv::Point2d> vecGPS;
 	std::vector<double> vecHigh;
 	parseGPSAndHighFromSRT(SRTFilename, vecGPS, vecHigh);

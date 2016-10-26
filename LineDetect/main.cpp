@@ -19,6 +19,7 @@
 #include "common.h"
 
 #include "LineDetect.h"
+#include "CMap.h"
 
 void getGPSFromTXT(const std::string &filename, std::vector<cv::Point2d> &vecGPS)
 {
@@ -42,11 +43,11 @@ void test_mark_GPS()
 	const std::string mapFilename = "G:\\MapTileDownload\\OutPut\\¹È¸èµØÍ¼_161020230531_L19\\¹È¸èµØÍ¼_161020230531.png";
 	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\¹È¸èµØÍ¼_161020230531_L19\\¹È¸èµØÍ¼_161020230531.txt";
 	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
-	CMap m(mapFilename, coordinateFilename, 1 << 1);
+	CMap m(mapFilename, coordinateFilename, mapFilename);
 
 	cv::Point2d gpsPt(34.2355635246, 108.9165973293);
-	m.mark(gpsPt);
-	m.show();
+	m.markGPSPt(gpsPt);
+	//m.show();
 	cv::waitKey(0);
 }
 int main(int argc, char *argv[])
@@ -55,7 +56,7 @@ int main(int argc, char *argv[])
 	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\¹È¸èµØÍ¼_161020230531_L19\\¹È¸èµØÍ¼_161020230531.txt";
 	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
 
-	CMap m(mapFilename, coordinateFilename, 1 << 1);
+	CMap m(mapFilename, coordinateFilename, mapFilename);
 	std::vector<cv::Point2d> vecGPS;
 	std::vector<double> vecHigh;
 	parseGPSAndHighFromSRT(SRTFilename, vecGPS, vecHigh, "output_test.txt");
@@ -70,10 +71,10 @@ int main(int argc, char *argv[])
 		m.calcFrame(vecGPS[i], img, 100, 729, 117);
 		img;
 		//m.drawMapROI(img);
-		m.show();
+		//m.show();
 		cv::waitKey(0);
 	}
-	m.show();
+	//m.show();
 	cv::waitKey(0);
 	return 0;
 }
