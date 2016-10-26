@@ -104,6 +104,7 @@ static void onMouse(int event, int x, int y, int flag, void *)
 
 int main(int argc, char *argv[])
 {
+	freopen("res.txt", "w", stdout);
 	const std::string videoFilename = "G:\\resources\\videos\\DJI_0002.MOV";
 	cv::VideoCapture cap(videoFilename);
 	assert(cap.isOpened());
@@ -116,7 +117,8 @@ int main(int argc, char *argv[])
 	bool MULTISCALE = false;
 	bool LAB = false;
 	KCFTracker tracker(HOG, FIXEDWINDOW, MULTISCALE, LAB);
-	CKalManFilter KF;
+	//CKalManFilter KF;
+	CKalmanFilter KF;
 
 	int frameIndex = 1400;
 	cap.set(CV_CAP_PROP_POS_FRAMES, frameIndex - 1);
@@ -234,12 +236,22 @@ int main(int argc, char *argv[])
 			
 			if (peak_value >= 0.45f) {
 				tracker.updateTrain(frame);
-				KFPt = KF.predict(lastRect.x, lastRect.y);
+				cv::Mat resMat;
+				KF.predictAndCorrect(lastRect.x, lastRect.y, resRect.x - lastRect.x, resRect.y - lastRect.y, resMat);
+				KFPt.x = resMat.at<float>(0);
+				KFPt.y = resMat.at<float>(1);
+
+				//KFPt = KF.predict(lastRect.x, lastRect.y);
 			}
 			else if (peak_value < 0.45f && peak_value > 0.35f) {
 
 
-				KFPt = KF.predict(lastRect.x, lastRect.y);
+				cv::Mat resMat;
+				KF.predictAndCorrect(lastRect.x, lastRect.y, resRect.x - lastRect.x, resRect.y - lastRect.y, resMat);
+				KFPt.x = resMat.at<float>(0);
+				KFPt.y = resMat.at<float>(1);
+
+				//KFPt = KF.predict(lastRect.x, lastRect.y);
 			}
 			else {
 				if (occlused) {

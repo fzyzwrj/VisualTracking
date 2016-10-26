@@ -21,7 +21,7 @@ MY_EXPORT void getTrackPos(const std::string &posFilename, std::vector<cv::Rect>
 		cv::Rect track(x, y, width, height);
 		vecTrackPos.push_back(track);
 		vecFrameIndex.push_back(frameIndex);
-	}
+	} 
 }
 
 MY_EXPORT void scaleTrackPos(std::vector<cv::Rect> &vecTrackPos, const int scale)
