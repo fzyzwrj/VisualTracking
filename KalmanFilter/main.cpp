@@ -13,7 +13,7 @@
 
 int main()
 {
-	const std::string posFilename = "C:\\3rdParty\\source\\Exercise\\res\\16.txt";
+	const std::string posFilename = "C:\\3rdParty\\source\\Exercise\\res\\17.txt";
 	const int scale = 4;
 	std::vector<cv::Rect> vecTrackPos;	// ¸ú×ÙµÄ¹ì¼£
 	std::vector<int> vecFrameIndex;
@@ -31,11 +31,16 @@ int main()
 	for (auto it = vecTrackPos.cbegin() + 1; it != vecTrackPos.cend(); ++it) {
 		cv::Point measurePt(it->x, it->y);
 		cv::Point2f filterPt = KF.predict(it->x, it->y);
+		//cv::Point2f statePt = KF.m_statePt;
+		//std::cout << std::endl;
+		//std::cout << measurePt << std::endl;
+		//std::cout << filterPt << std::endl;
+		//std::cout << statePt << std::endl;
 
 		imgBG = cv::Scalar::all(0);
-		DRAW_CROSS(imgBG, measurePt, cv::Scalar(0, 255, 0), 3);
-		DRAW_CROSS(imgBG, filterPt, cv::Scalar(255, 0, 0), 3);
-
+		DRAW_CROSS(imgBG, measurePt, GREEN, 3);
+		DRAW_CROSS(imgBG, filterPt, BLUE, 3);
+		//DRAW_CROSS(imgBG, statePt, YELLOW, 3);
 		SHOW_WAIT("imgBG", imgBG);
 	}
 

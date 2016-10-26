@@ -14,15 +14,13 @@
 
 #define SHOW(img) \
 	do { \
-		cv::namedWindow(#img);\
-		cv::moveWindow(#img, 0, 0);\
 		cv::imshow(#img, img);\
 	} while (0)
 
 #define SHOW_WAIT(winName, img) \
 	do {\
 		cv::imshow(winName, img);\
-		char ch = cv::waitKey(10);\
+		char ch = cv::waitKey(50);\
 		if (toupper(ch) == 'Q')\
 			exit(0);\
 	} while (0)
@@ -45,6 +43,10 @@ const cv::Scalar BLUE(255, 0, 0);
 const cv::Scalar LIGHTBLUE(255, 255, 160);
 const cv::Scalar GREEN(0, 255, 0);
 const cv::Scalar YELLOW(0, 255, 255);
+const cv::Scalar PURPLE(205, 0, 205);
+const cv::Scalar WHITE(255, 255, 255);
+const cv::Scalar BLACK(0, 0, 0);
+
 
 
 #endif /* COMMON_H__ */

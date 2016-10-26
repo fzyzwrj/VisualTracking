@@ -7,6 +7,7 @@
 //		cv::imshow(#img, img);\
 //	} while (0)
 #include "common.h"
+#include "TreeDetect.h"
 
 const bool adaptive_minsv = true;  // 自适应颜色过滤阈值
 

@@ -16,4 +16,6 @@ add_subdirectory(LineDetect)
 
 add_subdirectory(TreeDetect)
 
+add_subdirectory(MotionTargetDetect)
+
 add_subdirectory(Track)

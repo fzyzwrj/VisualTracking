@@ -13,15 +13,16 @@ public:
 			0, 0, 1, 0, \
 			0, 0, 0, 1);
 		cv::setIdentity(KF.measurementMatrix);
-		cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-5));	// 由噪声矩阵可以产生噪声processNoise
+		cv::setIdentity(KF.processNoiseCov, cv::Scalar::all(1e-2));	// 由噪声矩阵可以产生噪声processNoise
 		cv::setIdentity(KF.measurementNoiseCov, cv::Scalar::all(1e-1));
 		cv::setIdentity(KF.errorCovPost, cv::Scalar::all(1));
 	}
 
-	void init(float x, float y, float dx, float dy)
+	void init(int x, int y, float dx, float dy)
 	{
 		// 参数需要细调，尤其dx, dy
-		cv::Mat state = *(cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
+		state = *(cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
+		//std::cout << state << " " << "INIT ############" << std::endl;
 		//KF.statePost = (cv::Mat_<float>(stateTotal, 1) << x, y, dx, dy);
 		cv::randn(KF.statePost, cv::Scalar::all(0), cv::Scalar::all(1e-1));
 		KF.statePost += state;
@@ -29,8 +30,11 @@ public:
 
 	cv::Point2f predict(int x = -1, int y = -1)
 	{
-		cv::Point2f statePt(state.at<float>(0), state.at<float>(1));
+		//std::cout << state << " " << "############" << std::endl;
+		//状态变量好像只是跟初始值有关，感觉没有什么用
 
+		cv::Point2f statePt(state.at<float>(0), state.at<float>(1));
+		//m_statePt = statePt;
 		// predict
 		cv::Mat prediction = KF.predict();
 		cv::Point2f predictPt(prediction.at<float>(0), prediction.at<float>(1));
@@ -56,6 +60,7 @@ public:
 		state = KF.transitionMatrix * state + processNoise;
 		return predictPt;
 	}
+	//cv::Point2f m_statePt;
 
 private:
 	static const int stateTotal = 4; // x, y, dx, dy
