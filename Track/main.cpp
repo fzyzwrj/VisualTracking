@@ -12,57 +12,124 @@
 #include "TreeDetect.h"
 #include "LineDetect.h"
 #include "CMap.h"
+static float f = 729.0f;
 
-//// 给定点，转换成GPS点
-//double convertToGSP(const cv::Point2d &centerGPS, cv::Point2d pt, const cv::Size &sz)
-//{
-//	// 帧中心点的GPS的坐标，由字幕得到 centerGPS
-//	
-//	// 转换pt到跟踪图中心距离
-//	pt.x -= sz.width / 2;
-//	pt.y -= sz.height / 2;
-//
-//
-//}
-#define SCALE_PIXEL(W, H, f)
 
-static void initKCF()
+
+template<typename T>
+float calcAngle(const cv::Point_<T> *pt)
 {
-
-}
-// 初始目标选框
-static cv::Rect initRect;
-// 视频帧
-static cv::Mat frame;
-// 初始化标记
-static bool initFlag = true;
-
-static const std::string winName = "SHOW";
-
-template<typename T, typename U>
-static double calcDist(const cv::Point_<T> &pt1, const cv::Point_<U> &pt2)
-{
-	double x = pt1.x - pt2.x;
-	double y = pt1.y - pt2.y;
-	return sqrt(x * x + y * y);
+	return 0.0f;
 }
 
 
-// 直线pt到直线pt2,pt3的距离
-template<typename T, typename U>
-static double calcDist(const cv::Point_<T> &P, const cv::Point_<U> &A, const cv::Point_<U> &B)
+cv::Rect scaleRect(const cv::Rect &rect, float scale)
 {
-	double dAP = sqrt((P.x - A.x) * (P.x - A.x) + (P.y - A.y) * (P.y - A.y));
-	double dAB = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));
+	cv::Point2f center(rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f);
+	cv::Rect rectScaled = rect;
 
-	double cross = (P.x - A.x) * (B.x - A.x) + (P.y - A.y) * (B.y - A.y);
+	rectScaled.width *= scale;
+	rectScaled.height *= scale;
 
-	double cosTheta = cross / dAB / dAP;
-	return dAP * sqrt(1 - cosTheta * cosTheta);
+	rectScaled.x = center.x - rectScaled.width / 2.0f;
+	rectScaled.y = center.y - rectScaled.height / 2.0f;
+	return rectScaled;
 }
 
+// times是总共要训练的次数
+void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float angle, const cv::Rect &searchROIRect, const cv::Rect &reserveROIRect)
+{
+	times = 20;
+	cv::Mat frame = oriFrameImg.clone();
+	assert(angle >= 0.0f);
+	float anglePerTrain = angle / times;	// 每一帧需要多少角度的
+	anglePerTrain = anglePerTrain * 180 / CV_PI;
+	//cv::imshow("NO", oriFrameImg(searchROIRect));
+	cv::Rect searchROIRectScaled = scaleRect(searchROIRect, 2);
+	//cv::imshow("NO2", oriFrameImg(searchROIRectScaled));
+	//cv::waitKey(0);
+
+	//cv::Point2f center(searchROIRect.width / 2.0f, searchROIRect.height / 2.0f);
+	cv::Point2f center(searchROIRectScaled.width / 2.0f, searchROIRectScaled.height / 2.0f);
+
+	cv::Mat tempImg = oriFrameImg.clone();
+
+	for (int i = 0; i < times; ++i) {
+		//std::cout << i << std::endl;
+		//tracker.updateTrain(frame);
+		// getRotationMatrix2D的参数中，角度要是度数，而不是弧度的！！
+		// 注意rotateRect的角度，应该也是返回弧度的！
+		cv::Mat rotMatPerFrame = cv::getRotationMatrix2D(center, -((i + 1) * anglePerTrain), 1.0); // 要取反方向的角度，即逆时针旋转
+		//std::cout << rotMatPerFrame << std::endl;
+
+		cv::Mat ROIImg = frame(searchROIRectScaled & cv::Rect(0, 0, frame.cols, frame.rows)).clone();
+		//SHOW(ROIImg);
+		cv::Mat rotImg;
+		cv::warpAffine(ROIImg, rotImg, rotMatPerFrame, ROIImg.size());
+		//SHOW(rotImg);
+		cv::Point2f newCenter(rotImg.cols / 2.0f, rotImg.rows / 2.0f);
+		cv::Mat ROIResImg;
+		cv::getRectSubPix(rotImg, searchROIRect.size(), newCenter, ROIResImg);
+		SHOW(ROIResImg);
+		cv::Mat ROIOriImg = tempImg(searchROIRect);
+		assert(ROIOriImg.size() == ROIResImg.size());
+		//ROIOriImg = ROIResImg.clone();
+		cv::addWeighted(ROIOriImg, 0, ROIResImg, 1, 0, ROIOriImg);
+		/*ROIResImg.copyTo()*/
+		//SHOW(ROIOriImg);
+		//SHOW(frame);
+		cv::imshow("FUNC", tempImg);
+		std::cout << tempImg.size << std::endl;
+
+		cv::waitKey(0);
+		//tracker.setROI(center.x, center.y, frame);
+		tracker.setROI(reserveROIRect.x, reserveROIRect.y, tempImg);
+		float peak_value = 0.0f;
+		tracker.updateWithoutTrain(tempImg, peak_value);
+		std::cout << "PEAK " << peak_value << std::endl;
+		tracker.updateTrain(tempImg);
+
+
+
+		//float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
+		//angle = fabs(angle);
+
+		//float angle = calcAngle(offsetInFrame);
+		//float rotateFramesNum = sqrt(offsetInFrame.x * offsetInFrame.x + offsetInFrame.y * offsetInFrame.y) / sqrt(dx * dx + dy * dy);	// 需要多少帧，由距离直接除以速度
+		//float anglePerFrame = angle / rotateFramesNum;	// 每一帧需要多少角度的
+
+														//cv::Point2f center(lastRect.width / 2.0f, lastRect.height / 2.0f);
+		//center = cv::Point2f(searchROIRect.width / 2.0f, searchROIRect.height / 2.0f);
+
+		//// 为便于操作与性能上提升，直接将searchROI扩大为1.41倍
+
+
+		////cv::Rect searchROIRectScaled = scaleRect(searchROIRect, sqrt(2.0f));
+		//cv::Mat rotMatPerFrame = cv::getRotationMatrix2D(center, anglePerFrame, 1.0); // 要取反方向的角度，即逆时针旋转
+		//cv::Mat ROIImg = frame(searchROIRectScaled & cv::Rect(0, 0, frame.cols, frame.rows));
+		//cv::Mat rotImg;
+		//cv::warpAffine(ROIImg, rotImg, rotMatPerFrame, ROIImg.size());
+		//center = cv::Point2f(rotImg.cols / 2.0f, rotImg.rows / 2.0f);
+		//cv::Mat resImg;
+		//cv::getRectSubPix(rotImg, searchROIRect.size(), center, resImg);
+		//std::cout << angle << std::endl;
+		//std::cout << anglePerFrame << std::endl;
+		//cv::imshow("RES", resImg);
+		//cv::waitKey(0);
+
+
+
+	}
+}
+
+
+
+
+
+
+// !!! 这个函数不能移到common.h中，不知道哪里有错误
 // 返回周围4个点的颜色，如果不一样，返回白色
-cv::Scalar roundingScalar(const cv::Mat &img, const cv::Point &pt)
+static cv::Scalar roundingScalar(const cv::Mat &img, const cv::Point &pt)
 {
 	const cv::Scalar left(img.at<cv::Vec3b>(pt.y, pt.x - 1)[0], img.at<cv::Vec3b>(pt.y, pt.x - 1)[1], img.at<cv::Vec3b>(pt.y, pt.x - 1)[2]);
 	const cv::Scalar right(img.at<cv::Vec3b>(pt.y, pt.x + 1)[0], img.at<cv::Vec3b>(pt.y, pt.x + 1)[1], img.at<cv::Vec3b>(pt.y, pt.x + 1)[2]);
@@ -71,8 +138,51 @@ cv::Scalar roundingScalar(const cv::Mat &img, const cv::Point &pt)
 	if ((left == right) && (left == top) && (left == bottom))
 		return left;
 	else
-		return cv::Scalar(255, 255, 255);
+		return WHITE;
 }
+
+// 把实际距离换算成无人机拍摄的图片中的像素点距离，这里的f是根据4k来计算的
+cv::Vec2f convertDistIntoFrame(const cv::Vec2f &realVec, float high, float f)
+{
+	cv::Vec2f inFrameVec;
+	float x = realVec[0];
+	float y = realVec[1];
+	float xx = x * f / high;
+	inFrameVec[0] = realVec[0] * f / high;// 转换成毫米
+	inFrameVec[1] = realVec[1] * f / high;
+
+	inFrameVec[0] = inFrameVec[0] / 10 / 2.54 * 96;
+	inFrameVec[1] = inFrameVec[1] / 10 / 2.54 * 96;
+	return inFrameVec;
+}
+
+static void initKCF()
+{
+
+}
+static bool checkOcclused(const cv::Point2f &center, const std::vector<cv::Vec4i> &lines, float distThreshold)
+{
+	int occlusedTotal = 0;
+	for (const auto &l : lines) {
+		cv::Point pt1(l[0], l[1]);
+		cv::Point pt2(l[2], l[3]);
+
+		float dist = calcDist(center, pt1, pt2);
+		if (dist < distThreshold)
+			++occlusedTotal;
+	}
+	return occlusedTotal > lines.size() * 0.67;
+}
+
+
+// 初始目标选框
+static cv::Rect initRect;
+// 视频帧
+static cv::Mat frame;
+// 初始化标记
+static bool readyInitKCF = true;
+
+static const std::string frameWinName = "SHOW";
 
 static void onMouse(int event, int x, int y, int flag, void *)
 {
@@ -83,19 +193,19 @@ static void onMouse(int event, int x, int y, int flag, void *)
 	if (event == CV_EVENT_LBUTTONDOWN) {
 		imgTmp = frame.clone();
 		prePoint = cv::Point(x, y);
-		initFlag = true;
+		readyInitKCF = true;
 	}	// 鼠标左键按下并移动
 	else if (event == CV_EVENT_MOUSEMOVE && (flag & CV_EVENT_FLAG_LBUTTON)) {
 		imgTmp = frame.clone();	// 每次移动都要拷贝原图用于画图
 		curPoint = cv::Point(x, y);
 		cv::rectangle(imgTmp, prePoint, curPoint, RED, 1, 8);
-		cv::imshow(winName, imgTmp);
+		cv::imshow(frameWinName, imgTmp);
 	}	// 松开左键，选框完毕
 	else if (event == CV_EVENT_LBUTTONUP) {
 		initRect = cv::Rect(prePoint, curPoint);
-		initFlag = false;
+		readyInitKCF = false;
 		if (initRect.width < 2 || initRect.height < 2)
-			initFlag = true;
+			readyInitKCF = true;
 	}
 	else if (event == CV_EVENT_LBUTTONDBLCLK) {
 		std::cout << "Closed." << std::endl;
@@ -107,158 +217,248 @@ int main(int argc, char *argv[])
 {
 	//freopen("res.txt", "w", stdout);
 	const std::string videoFilename = "G:\\resources\\videos\\DJI_0002.MOV";
+	const std::string mapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.png";
+	const std::string mapMarkedFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
+	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.txt";
+	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
+
+	// 初始化视频
 	cv::VideoCapture cap(videoFilename);
 	assert(cap.isOpened());
-	cv::namedWindow(winName);
-	cv::setMouseCallback(winName, onMouse);
+	// 初始第一帧位置
+	int frameIndex = 1400;
+	cap.set(CV_CAP_PROP_POS_FRAMES, frameIndex - 1);
+	cv::namedWindow(frameWinName);
+	cv::moveWindow(frameWinName, 0, 0);
+	cv::setMouseCallback(frameWinName, onMouse);
 
-	// init KCF
+	// 初始化KCF
 	bool HOG = true;
 	bool FIXEDWINDOW = true;
 	bool MULTISCALE = false;
 	bool LAB = false;
 	KCFTracker tracker(HOG, FIXEDWINDOW, MULTISCALE, LAB);
-	//CKalManFilter KF;
-	CKalmanFilter KF;
-
-	int frameIndex = 1400;
-	cap.set(CV_CAP_PROP_POS_FRAMES, frameIndex - 1);
-	float dx = 0.0f, dy = 0.0f;
-	//bool initVelocity = true;
-	int framesCalcForVelocityTotal = 0;	// 使用多少帧来初始化速度参数，达到十帧后，标记initVelocity，同时初始化卡尔曼滤波器
-	int frameIndexForInit = 0;
-	bool initKF = false;
-
+	cv::Rect resRect;	// 当前帧的跟踪结果
 	cv::Rect lastRect;	 // 上一帧的跟踪结果
-	cv::moveWindow(winName, 0, 0);
+	cv::Rect searchROIRect;	 // 当前帧的搜索框，一般是目标框 x 2.5
+	float dx = 0.0f;
+	float dy = 0.0f;
+	cv::Rect reserveRect;	// 保存用于旋转的跟踪结果，一般是当前帧的前3帧左右，用于遮挡时KCF的更新（直接将目标旋转）
+	bool redetect = false;
+	cv::Mat reserveFrame;
+	cv::Rect reserveROIRect;
+	cv::Rect reserveSearchROIRect;
+	cv::Rect redetectRect;
 
-	////////////////////////////////////////////////////////////////////////// MAP
-	const std::string mapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.png";
-	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.txt";
-	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
-	const std::string markedMapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
+	// 初始化Klaman Filter
+	CKalmanFilter KF;
+	float dxInitKF = 0.0f, dyInitKF = 0.0f;	// 初始化速度
+	const int framesCalcForVelocityTotal = 5;	// 使用多少帧来初始化速度参数，达到后标记初始标记了，随后初始化卡尔曼滤波器
+	int frameIndexForInitKF = 0;	// 第一帧用于初始化KF的速度的，与framesCalcForVelocityTotal共同使用
+	bool KFInited = false;
 
-	CMap m(mapFilename, coordinateFilename, markedMapFilename);
+	// 初始化地图
+	CMap m(mapFilename, coordinateFilename, mapMarkedFilename);
 	std::vector<cv::Point2d> vecGPS;
 	std::vector<double> vecHigh;
 	parseGPSAndHighFromSRT(SRTFilename, vecGPS, vecHigh);
 	cv::Mat mapROI;
-	cv::Mat mapROIMarked;
-
+	cv::Mat mapMarkedROI;
 	bool inRedArea = false;
 	bool inBlueArea = false;
 	bool inGreenArea = false;
 	bool inBlackArea = false;
 
-	//////////////////////////////////////////////////////////////////////////
-
-
 	for (;;) {
 		++frameIndex;
 		cap >> frame;
-		cv::resize(frame, frame, cv::Size(2048, 1080));
-		//cv::resize(frame, frame, cv::Size(1024, 540));
+		// 由于视频分辨率过大，需要适当缩小
+		TEST_TIME(cv::resize(frame, frame, cv::Size(2048, 1080)));
 
-
-
-		if (frameIndex == 0 || initFlag) {
-			cv::imshow(winName, frame);
+		// 是否重新跟踪目标
+		if (frameIndex == 0 || readyInitKCF) {
+			cv::imshow(frameWinName, frame);
 			cv::waitKey(0);
 			tracker.init(initRect, frame);
-			
-			//KF.init(initRect.x, initRect.y, -5 / 4.0, 12 / 4.0);
-			//framesCalcForVelocityTotal = 0;
-			//initVelocity = false;
-			frameIndexForInit = frameIndex;
-			dx = 0.0f;
-			dy = 0.0f;
-			initKF = false;
-			
-			rectangle(frame, initRect, RED, 1, 8);
-
+			cv::rectangle(frame, initRect, RED, 1, 8);
 			lastRect = initRect;
+
+			// 初始化速度
+			frameIndexForInitKF = frameIndex;
+			dxInitKF = 0.0f;
+			dyInitKF = 0.0f;
+			KFInited = false;
+
+			reserveFrame = frame.clone();
+			reserveROIRect = initRect;
+			reserveSearchROIRect = tracker._extracted_roi;
 		}
 		else {
 			float peak_value = 0.0f;
-			cv::Rect resRect = tracker.updateWithoutTrain(frame, peak_value);
-			//tracker.updateTrain(frame);
-			cv::Rect searchROI = tracker._extracted_roi; // 上一帧的跟踪框
-			std::cout << peak_value << std::endl;
+			TEST_TIME(resRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
 
-			// 树木检测，在原图中直接标记出来
-			cv::Mat searchROIImg = frame(searchROI & cv::Rect(0, 0, frame.cols, frame.rows));
-			//cv::Mat searchROIImg2 = searchROIImg.clone();
+			if (redetect) {
+				resRect = redetectRect;
+				tracker.setROI(resRect.x, resRect.y, frame);
+			}
+			std::cout << "PEAK VALUE: " << peak_value << std::endl;
+			//std::cout << "BEGIN " << resRect << std::endl;
+
+			searchROIRect = tracker._extracted_roi;			// 上一帧的跟踪框
+
+			// 树木检测，在原图中标记
+			cv::Mat searchROIImg = frame(searchROIRect & cv::Rect(0, 0, frame.cols, frame.rows));	// 不能超出原图
 			cv::Mat colorFilteredImg;
-			colorFilter(searchROIImg, colorFilteredImg);
+			TEST_TIME(colorFilter(searchROIImg, colorFilteredImg));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，不到5ms
 			cv::Mat colorFilteredBGRImg;
 			cv::cvtColor(colorFilteredImg, colorFilteredBGRImg, CV_GRAY2BGR);
-			add(searchROIImg, colorFilteredBGRImg, searchROIImg);
-			//addWeighted(searchROIImg, 0.2, colorFilteredImg, 0.8, 0, searchROIImg);
-			//SHOW(searchROIImg);
-			//SHOW(colorFilteredImg);
+			// 叠加在原图中
+			//TEST_TIME(add(searchROIImg, colorFilteredBGRImg, searchROIImg));
 
 
-			cv::Rect searchROILine = searchROI;
-			searchROILine.x -= searchROILine.width / 2;
-			searchROILine.width += searchROILine.width;
-			searchROILine &= cv::Rect(0, 0, frame.cols, frame.rows);
-			cv::Mat searchROILImg = frame(searchROILine);
-			//searchROIImg = frame(cv::Rect(searchROI.x - searchROI.width / 2, searchROI.y, searchROI.width * 2, searchROI.height));
-
+			// 直线检测
 			cv::Mat lineDetectedImg;
-			std::vector<cv::Vec4i> lines = lineDetect(searchROIImg, lineDetectedImg);
-			for (size_t i = 0; i < lines.size(); ++i) {
-				cv::Vec4i l = lines[i];
-				cv::Point pt1(l[0], l[1]);
-				cv::Point pt2(l[2], l[3]);
-				cv::line(searchROIImg, pt1, pt2, LIGHTBLUE, 4);
-			}
-
-			// searchROIImg就是中心点
-			cv::Point2f lineDetectCenterPt(searchROIImg.cols / 2.0f, searchROIImg.rows / 2.0f);
-			bool occlused = false;
-			int occusedNum = 0;
-			for (size_t i = 0; i < lines.size(); ++i) {
-				const cv::Vec4i &l = lines[i];
-				double dist = calcDist(lineDetectCenterPt, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]));
-				if (dist < lineDetectCenterPt.x) {
-					++occusedNum;
-				}
-			}
-			if (lines.size() * 0.67 < occusedNum)
-				occlused = true;
-
-
-
-
+			std::vector<cv::Vec4i> lines;
+			TEST_TIME(lineDetect(searchROIImg, lines));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，10ms左右
+			drawLines(searchROIImg, lines);
 			//SHOW(lineDetectedImg);
 
-			cv::Point2f KFPt;
 			
-			if (peak_value >= 0.45f) {
-				tracker.updateTrain(frame);
-				cv::Mat resMat;
-				KF.predictAndCorrect(lastRect.x, lastRect.y, resRect.x - lastRect.x, resRect.y - lastRect.y, resMat);
-				KFPt.x = resMat.at<float>(0);
-				KFPt.y = resMat.at<float>(1);
-
-				//KFPt = KF.predict(lastRect.x, lastRect.y);
+			// 获取与运动方向平行或者垂直的线段
+			std::vector<cv::Vec4i> linesParallel;
+			std::vector<cv::Vec4i> linesVertical;
+			cv::Point2f V(dx, dy);
+			for (const auto &l : lines) {
+				cv::Point pt1(l[0], l[1]);
+				cv::Point pt2(l[2], l[3]);
+				float angle = calcAngle(V, pt1, pt2);
+				float len = calcDist(pt1, pt2);
+				angle = fabs(angle);
+				angle *= 180 / CV_PI;
+				const float threshold = 0.67f;
+				if (angle < 10 && len > threshold * searchROIRect.width)
+					linesParallel.push_back(l);
+				else if (angle > 80 && len > threshold * searchROIRect.height)
+					linesVertical.push_back(l);
+				else
+					;
 			}
-			else if (peak_value < 0.45f && peak_value > 0.35f) {
 
+			// 根据直线检测情况判断遮挡
+			cv::Point2f center(searchROIImg.cols / 2.0f, searchROIImg.rows / 2.0f);
+			bool parallelOcclused = checkOcclused(center, linesParallel, initRect.width * 0.5f);	// 因为跟踪框一般会比较大，折半后再减小一些
+			bool verticalOcclused = checkOcclused(center, linesVertical, initRect.height * 0.5f);
+			char buf[256];
+			
+			if (parallelOcclused || verticalOcclused)	// 在屏幕打印遮挡信息
+				sprintf_s(buf, "Total: %zd, P: %zd, V: %zd, Res: %d, %d", lines.size(), linesParallel.size(), linesVertical.size(), parallelOcclused, verticalOcclused);
+			cv::putText(frame, buf, cv::Point(30, 30), cv::FONT_HERSHEY_DUPLEX, 1.0, RED);
 
-				cv::Mat resMat;
-				KF.predictAndCorrect(lastRect.x, lastRect.y, resRect.x - lastRect.x, resRect.y - lastRect.y, resMat);
-				KFPt.x = resMat.at<float>(0);
-				KFPt.y = resMat.at<float>(1);
+			cv::Point2f KFPt;	// Kalman Filter预测出的结果
+			// 判断是否遮挡，同时决定是否更新KCF
+			// 无遮挡
+			std::cout << redetect << std::endl;
+			if (redetect)
+				peak_value = 0.36f;
 
-				//KFPt = KF.predict(lastRect.x, lastRect.y);
+			if (peak_value >= 0.35f) {
+				dx = resRect.x - lastRect.x;
+				dy = resRect.y - lastRect.y;
+
+				// 完全无遮挡，更新KCF
+				if (peak_value >= 0.45f) {
+					TEST_TIME(tracker.updateTrain(frame));
+					redetect = false;
+					KFInited = true;
+				}
+				else {
+					// 没有被完全遮挡，但为防止模型漂移，不更新KCF，但造成对旋转不变等失效
+				}
+
+				if (KFInited) {
+					cv::Mat resMat;
+
+					KF.predictAndCorrect(lastRect.x * 1.0f, lastRect.y * 1.0f, dx, dy, resMat);
+					KFPt.x = resMat.at<float>(0);
+					KFPt.y = resMat.at<float>(1);
+					//std::cout << "dx, dy " << resMat.at<float>(2) << " " << resMat.at<float>(3) << std::endl;
+					//std::cout << "True dx, dy " << dx << " " << dy << std::endl;
+				}
+
 			}
+			// 完全被遮挡，使用Kalman Filter进行预测
 			else {
-				if (occlused) {
+				// 判断离遮挡直接的距离减小的方向与行驶的角度的关系，如果
+
+
+				if (parallelOcclused || verticalOcclused) {
+					redetect = true;
+
+					KFInited = false;
 					std::cout << "$$$$$$$$$$$$$$$$$$$$$$$$" << std::endl;
-					if (inRedArea)
+					if (inRedArea) {
 						std::cout << "RED" << std::endl;
+						// 在指定区域进行检测
+						// 用点来表示偏移，可以改成文件的形式来记录，在地图中来标记像素点的个数
+						// 计算偏移
+						cv::Point2f offset(15, -16);
+						cv::Point2f offsetInFrame = convertDistIntoFrame(offset, vecHigh[frameIndex / 25], f);
+						//std::cout << offsetInFrame << std::endl;
+
+						// 用于归一化，因为原图被缩小了2倍
+						offsetInFrame.x /= 2.0f;
+						offsetInFrame.y /= 2.0f;
+
+						// 计算出更新后的位置，即预测的位置
+						resRect.x += offsetInFrame.x;
+						resRect.y += offsetInFrame.y;
+						redetectRect = resRect;
+
+						float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
+						angle = fabs(angle);
+
+						//float angle = calcAngle(offsetInFrame);
+						float rotateFramesNum = sqrt(offsetInFrame.x * offsetInFrame.x + offsetInFrame.y * offsetInFrame.y) / sqrt(dx * dx + dy * dy);	// 需要多少帧，由距离直接除以速度
+						float anglePerFrame = angle / rotateFramesNum;	// 每一帧需要多少角度的
+
+																		// 以下来更新KCF
+						updateKCF(tracker, rotateFramesNum, reserveFrame, angle, reserveSearchROIRect, reserveROIRect);
+						tracker.setROI(resRect.x, resRect.y, frame);
+
+						//cv::Point2f center(lastRect.width / 2.0f, lastRect.height / 2.0f);
+						//center = cv::Point2f(searchROIRect.width / 2.0f, searchROIRect.height / 2.0f);
+						//
+						//// 为便于操作与性能上提升，直接将searchROI扩大为1.41倍
+
+						//
+						//cv::Rect searchROIRectScaled = scaleRect(searchROIRect, sqrt(2.0f));
+						//cv::Mat rotMatPerFrame = cv::getRotationMatrix2D(center, anglePerFrame, 1.0); // 要取反方向的角度，即逆时针旋转
+						//cv::Mat ROIImg = frame(searchROIRectScaled & cv::Rect(0, 0, frame.cols, frame.rows));
+						//cv::Mat rotImg;
+						//cv::warpAffine(ROIImg, rotImg, rotMatPerFrame, ROIImg.size());
+						//center = cv::Point2f(rotImg.cols / 2.0f, rotImg.rows / 2.0f);
+						//cv::Mat resImg;
+						//cv::getRectSubPix(rotImg, searchROIRect.size(), center, resImg);
+						//std::cout << angle << std::endl;
+						//std::cout << anglePerFrame << std::endl;
+						//cv::imshow("RES", resImg);
+						//cv::waitKey(0);
+
+
+						//cv::Mat rotMatPerFrame = cv::getRotationMatrix2D(center, anglePerFrame, 1.0); // 要取反方向的角度，即逆时针旋转
+
+						//// 这里的frame应该保留的
+						//cv::Mat ROIImg = frame(searchROIRect & cv::Rect(0, 0, frame.cols, frame.rows)).clone();
+
+						//cv::Mat rotImg;	// trainImg
+						//cv::warpAffine(ROIImg, rotImg, rotMatPerFrame, rotMatPerFrame.size());
+						//center = cv::Point2f(rotImg.cols / 2.0f, rotImg.rows / 2.0f);
+						//cv::getRectSubPix(rotImg, initRect.size, center, initRect.size);
+						////tracker.train(rotImg);
+
+
+
+					}
 					else if (inBlueArea)
 						std::cout << "BLUE" << std::endl;
 					else if (inBlackArea)
@@ -269,40 +469,40 @@ int main(int argc, char *argv[])
 						std::cout << "NOOOOOOOOOOOOOOOOOOOOOOOO" << std::endl;
 				}
 
-
-				if (initKF) {
-					KFPt = KF.predict();
+				// 发生遮挡后，对Kalman Filter要重新初始化
+				if (KFInited) {
+					cv::Mat predictMat;
+					KF.predict(predictMat);
+					KFPt = cv::Point2f(predictMat.at<float>(0), predictMat.at<float>(1));
 					resRect = cv::Rect(KFPt.x, KFPt.y, initRect.width, initRect.height);
-					tracker.setROI(KFPt.x, KFPt.y, frame);
-		
+
 					////////////////////////////////////////////////////////////////////////// 增加直线判断
-					int x = resRect.x - lastRect.x;
-					int y = resRect.y - lastRect.y;
-					for (size_t i = 0; i < lines.size(); ++i) {
+					dx = resRect.x - lastRect.x;
+					dy = resRect.y - lastRect.y;
+					//std::cout << "dx, dy " << predictMat.at<float>(2) << " " << predictMat.at<float>(3) << std::endl;
+					//std::cout << "True dx, dy " << dx << " " << dy << std::endl;
+					//for (size_t i = 0; i < lines.size(); ++i) {
 
-					}
 					//////////////////////////////////////////////////////////////////////////
+				}
 
-				}
-				else {
-					std::cerr << "Warning: Having no init Kalman Filter Yes." << std::endl;
-				}
+				tracker.setROI(resRect.x, resRect.y, frame);
 
 			}
 
 			// std::cout << KFPt << " " << resRect.tl() << " " << calcDist(KFPt, resRect.tl()) << std::endl;
 
-			if (frameIndex - frameIndexForInit < 5) {
-				dx += resRect.x - lastRect.x;
-				dy += resRect.y - lastRect.y;
+			if (frameIndex - frameIndexForInitKF < 5) {
+				dxInitKF += resRect.x - lastRect.x;
+				dyInitKF += resRect.y - lastRect.y;
 			}
-			else if (frameIndex - frameIndexForInit == 5) {
-				dx /= 5;
-				dy /= 5;
-				KF.init(resRect.x, resRect.y, dx, dy);
-				initKF = true;
+			else if (frameIndex - frameIndexForInitKF == 5) {
+				dxInitKF /= 5;
+				dyInitKF /= 5;
+				KF.init(resRect.x, resRect.y, dxInitKF, dyInitKF);
+				KFInited = true;
 			}
-
+			reserveRect = lastRect;
 			lastRect = resRect;
 
 
@@ -311,7 +511,7 @@ int main(int argc, char *argv[])
 			if (frameIndex % 25 == 0) {
 				m.calcFrame(vecGPS[secondIndex - 1], cv::Mat(cv::Size(4096, 2160), 0), vecHigh[secondIndex - 1], 729, 117);
 				//m.drawMapROI(mapROI);
-				m.getMapROI(mapROI, mapROIMarked);
+				m.getMapROI(mapROI, mapMarkedROI);
 
 
 			}
@@ -321,9 +521,9 @@ int main(int argc, char *argv[])
 				targerPt.y /= (frame.rows * 1.0f / mapROI.rows);
 				DRAW_CROSS(mapROI, targerPt, RED, 1);
 				SHOW(mapROI);
-				SHOW(mapROIMarked);
+				SHOW(mapMarkedROI);
 
-				const cv::Scalar &color = roundingScalar(mapROIMarked, targerPt);
+				const cv::Scalar &color = roundingScalar(mapMarkedROI, targerPt);
 				if (color == RED)
 					inRedArea = true;
 				else
@@ -363,14 +563,14 @@ int main(int argc, char *argv[])
 			//cv::Point2d ptInMap;
 			
 
-
+			//std::cout << "END " << resRect << std::endl;
 			cv::rectangle(frame, resRect, GREEN);
-			cv::rectangle(frame, searchROI, PINK);
+			cv::rectangle(frame, searchROIRect, PINK);
 
-			if (initKF)
+			if (KFInited)
 				cv::rectangle(frame, cv::Rect(KFPt.x, KFPt.y, resRect.width, resRect.height), YELLOW);
 		}
-		cv::imshow(winName, frame);
+		cv::imshow(frameWinName, frame);
 		char ch = cv::waitKey(10);
 		if (toupper(ch) == 'Q')
 			break;

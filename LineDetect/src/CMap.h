@@ -46,7 +46,7 @@ private:
 								//cv::Point2d centerPt; // 中心点的GPS坐标，x为纵坐标，y为横坐标
 	cv::Point2d m_centerPt; // 中心点的GPS坐标，x为纵坐标，y为横坐标
 	std::vector<cv::Point2d> vecCenterPt; // 从字幕中得到中心点的坐标，暂存，后期实时得到
-	cv::Mat m_markedMapImg;	// 标记出遮挡区域的地图
+	cv::Mat m_mapMarkedImg;	// 标记出遮挡区域的地图
 };
 
 

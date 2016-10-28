@@ -25,8 +25,8 @@ bool checkGreenPixelHSV(const cv::Vec3b &color) {
 	const float minabs_sv = 95;
 	//int min_h = 45;
 	//int max_h = 75;
-	int min_h = 35;
-	int max_h = 85;
+	const int min_h = 35;
+	const int max_h = 85;
 
 	float diff_h = float((max_h - min_h) / 2);
 	float avg_h = min_h + diff_h;
@@ -57,7 +57,7 @@ bool checkGreenPixelHSV(const cv::Vec3b &color) {
 	return false;
 }
 
-bool checkGreenPixelBGR(const cv::Vec3b &color)
+inline bool checkGreenPixelBGR(const cv::Vec3b &color)
 {
 	const int b = color[0];
 	const int g = color[1];

@@ -7,6 +7,9 @@
 #include <opencv2\opencv.hpp>
 #include <opencv2\highgui.hpp>
 
+#include "common.h"
+#include "LineDetect.h"
+
 #define SHOW(img) \
 	do { \
 		cv::imshow(#img, img);\
@@ -108,18 +111,44 @@ std::vector<cv::Vec4i> lineDetect(const cv::Mat &srcImg, cv::Mat &houghPImg)
 	//	else
 	//		++it;
 	//}
-	houghPImg.create(cannyImg.size(), CV_8U);
-	houghPImg = cv::Scalar::all(0);
-	for (size_t i = 0; i < lines.size(); ++i) {
-		//float rho = lines[i][0], theta = lines[i][1];
-		const cv::Vec4i &l = lines[i];
-		const cv::Point pt1(l[0], l[1]);
-		const cv::Point pt2(l[2], l[3]);
-		cv::line(houghPImg, pt1, pt2, cv::Scalar(255, 0, 255));
-	}
+	//houghPImg.create(cannyImg.size(), CV_8U);
+	//houghPImg = cv::Scalar::all(0);
+	//for (size_t i = 0; i < lines.size(); ++i) {
+	//	//float rho = lines[i][0], theta = lines[i][1];
+	//	const cv::Vec4i &l = lines[i];
+	//	const cv::Point pt1(l[0], l[1]);
+	//	const cv::Point pt2(l[2], l[3]);
+	//	cv::line(houghPImg, pt1, pt2, cv::Scalar(255, 0, 255));
+	//}
 	return lines;
 }
 
+size_t lineDetect(const cv::Mat &srcImg, cv::vector<cv::Vec4i> &lines)
+{
+	cv::Mat grayImg;
+	cv::cvtColor(srcImg, grayImg, cv::COLOR_BGR2GRAY);
+	cv::Mat cannyImg;
+	const int edgeThresh = 50;
+	cv::Canny(grayImg, cannyImg, edgeThresh, 3 * edgeThresh);
+
+	assert(lines.empty());
+	//std::vector<cv::Vec4i> lines;
+	//double minLineLength = srcImg.rows < srcImg.cols ? srcImg.rows : srcImg.cols;
+	//minLineLength -= 10;
+	cv::HoughLinesP(cannyImg, lines, 1, CV_PI / 180, 80, 0, 10); //adjust parameter
+																 //cv::houghPImg(cannyImg.size(), cannyImg.type(), cv::Scalar::all(0));
+	return lines.size();
+}
+
+void drawLines(cv::Mat &img, const cv::vector<cv::Vec4i> &lines)
+{
+	for (size_t i = 0; i < lines.size(); ++i) {
+		const cv::Vec4i &l = lines[i];
+		const cv::Point pt1(l[0], l[1]);
+		const cv::Point pt2(l[2], l[3]);
+		cv::line(img, pt1, pt2, RED);
+	}
+}
 
 
 void parseGPSAndHighFromSRT(const std::string &SRTFilename, std::vector<cv::Point2d> &vecPos, std::vector<double> &vecHigh, const std::string &saveFilename)

@@ -10,11 +10,11 @@
 CMap::CMap(const std::string &mapFilename, const std::string &coordinateFilename, const std::string &markedMapFilename)
 {
 	m_mapImg = cv::imread(mapFilename);
-	m_markedMapImg = cv::imread(markedMapFilename);
+	m_mapMarkedImg = cv::imread(markedMapFilename);
 	std::fstream fin(coordinateFilename);
 
 	assert(m_mapImg.data);
-	assert(m_markedMapImg.data);
+	assert(m_mapMarkedImg.data);
 	assert(fin.is_open());
 
 	// 跳过坐标文件前6行，无效数据
@@ -68,7 +68,7 @@ void CMap::calcFrame(const cv::Point2d &centerGPS, const cv::Mat &frame, double 
 void CMap::getMapROI(cv::Mat &img, cv::Mat &imgMarked) const
 {
 	getCorrectedImgFromRotateRect(m_mapImg, m_mapROIRRect, img);
-	getCorrectedImgFromRotateRect(m_markedMapImg, m_mapROIRRect, imgMarked);
+	getCorrectedImgFromRotateRect(m_mapMarkedImg, m_mapROIRRect, imgMarked);
 }
 
 // 从全能电子地图下载器图像拼接行中提取坐标，格式如下：
