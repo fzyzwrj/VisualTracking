@@ -54,6 +54,11 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 
 	cv::Mat tempImg = oriFrameImg.clone();
 
+
+	//tracker.init(reserveROIRect, tempImg);
+
+
+
 	for (int i = 0; i < times; ++i) {
 		//std::cout << i << std::endl;
 		//tracker.updateTrain(frame);
@@ -79,7 +84,7 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		//SHOW(ROIOriImg);
 		//SHOW(frame);
 		cv::imshow("FUNC", tempImg);
-		std::cout << tempImg.size << std::endl;
+		//std::cout << tempImg.size << std::endl;
 
 		cv::waitKey(0);
 		//tracker.setROI(center.x, center.y, frame);
@@ -89,6 +94,9 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		std::cout << "PEAK " << peak_value << std::endl;
 		tracker.updateTrain(tempImg);
 
+		if (i == times - 1) {
+			tracker.init(reserveROIRect, tempImg);
+		}
 
 
 		//float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
@@ -116,10 +124,8 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		//std::cout << anglePerFrame << std::endl;
 		//cv::imshow("RES", resImg);
 		//cv::waitKey(0);
-
-
-
 	}
+
 }
 
 
@@ -269,6 +275,8 @@ int main(int argc, char *argv[])
 	bool inGreenArea = false;
 	bool inBlackArea = false;
 
+	bool inRedetect = false;
+
 	for (;;) {
 		++frameIndex;
 		cap >> frame;
@@ -280,6 +288,7 @@ int main(int argc, char *argv[])
 			cv::imshow(frameWinName, frame);
 			cv::waitKey(0);
 			tracker.init(initRect, frame);
+			reserveFrame = frame.clone();
 			cv::rectangle(frame, initRect, RED, 1, 8);
 			lastRect = initRect;
 
@@ -289,7 +298,6 @@ int main(int argc, char *argv[])
 			dyInitKF = 0.0f;
 			KFInited = false;
 
-			reserveFrame = frame.clone();
 			reserveROIRect = initRect;
 			reserveSearchROIRect = tracker._extracted_roi;
 		}
@@ -357,13 +365,36 @@ int main(int argc, char *argv[])
 			cv::Point2f KFPt;	// Kalman Filter预测出的结果
 			// 判断是否遮挡，同时决定是否更新KCF
 			// 无遮挡
-			std::cout << redetect << std::endl;
-			if (redetect)
-				peak_value = 0.36f;
+			std::cout << "redect " << redetect << std::endl;
 
-			if (peak_value >= 0.35f) {
+
+			if (redetect == true && peak_value >= 0.3f) {
+				inRedetect = true;
+				redetect = false;
+				KFInited = true;
+				//resRect = tracker.update(frame);
+				float peak_value_redect = 0.0f;
+
+				resRect = tracker.updateWithoutTrain(frame, peak_value_redect);
+				std::cout << "resRect " << resRect << std::endl;
+				tracker.updateTrain(frame);
+				std::cout << peak_value_redect << std::endl;
+				parallelOcclused = false;
+				verticalOcclused = false;
+			}
+			if (inRedetect) {
+				parallelOcclused = false;
+				verticalOcclused = false;
+			}
+
+
+			if (redetect)
+				peak_value = 0.30f;
+
+			if (peak_value >= 0.30f) {
 				dx = resRect.x - lastRect.x;
 				dy = resRect.y - lastRect.y;
+
 
 				// 完全无遮挡，更新KCF
 				if (peak_value >= 0.45f) {
