@@ -60,6 +60,9 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 
 
 	for (int i = 0; i < times; ++i) {
+		if (i != times - 1)
+			continue;
+
 		//std::cout << i << std::endl;
 		//tracker.updateTrain(frame);
 		// getRotationMatrix2D的参数中，角度要是度数，而不是弧度的！！
@@ -75,6 +78,7 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		cv::Point2f newCenter(rotImg.cols / 2.0f, rotImg.rows / 2.0f);
 		cv::Mat ROIResImg;
 		cv::getRectSubPix(rotImg, searchROIRect.size(), newCenter, ROIResImg);
+
 		SHOW(ROIResImg);
 		cv::Mat ROIOriImg = tempImg(searchROIRect);
 		assert(ROIOriImg.size() == ROIResImg.size());
@@ -84,6 +88,8 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		//SHOW(ROIOriImg);
 		//SHOW(frame);
 		cv::imshow("FUNC", tempImg);
+		std::string filename = std::to_string(i) + "_rotate.jpg";
+		cv::imwrite(filename, tempImg);
 		//std::cout << tempImg.size << std::endl;
 
 		cv::waitKey(0);
@@ -263,6 +269,8 @@ int main(int argc, char *argv[])
 	int frameIndexForInitKF = 0;	// 第一帧用于初始化KF的速度的，与framesCalcForVelocityTotal共同使用
 	bool KFInited = false;
 
+	bool noKF = false;
+
 	// 初始化地图
 	CMap m(mapFilename, coordinateFilename, mapMarkedFilename);
 	std::vector<cv::Point2d> vecGPS;
@@ -276,6 +284,9 @@ int main(int argc, char *argv[])
 	bool inBlackArea = false;
 
 	bool inRedetect = false;
+
+	//cv::VideoWriter writer("res.avi", CV_FOURCC('M', 'J', 'P', 'G'), 25.0f, cv::Size(2048, 1080));
+	//assert(writer.isOpened());
 
 	for (;;) {
 		++frameIndex;
@@ -297,19 +308,52 @@ int main(int argc, char *argv[])
 			dxInitKF = 0.0f;
 			dyInitKF = 0.0f;
 			KFInited = false;
+			inRedetect = false;
+			KFInited = false;
+			noKF = false;
 
 			reserveROIRect = initRect;
 			reserveSearchROIRect = tracker._extracted_roi;
+
+
+			//updateKCF(tracker, 180, reserveFrame, CV_PI, reserveSearchROIRect, reserveROIRect);
 		}
 		else {
 			float peak_value = 0.0f;
 			TEST_TIME(resRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
-
-			if (redetect) {
+			if (redetect && !noKF) {
 				resRect = redetectRect;
 				tracker.setROI(resRect.x, resRect.y, frame);
+
+				float max_peak_value = 0.0f;
+				cv::Rect maxResRect;
+				for (int r = -10; r <= 10; ++r) {
+					for (int c = 0; c < (10 - abs(r)) / 3; ++c) {
+						tracker.setROI(resRect.x + 2 * c, resRect.y + 2 * r, frame);
+						resRect = tracker.updateWithoutTrain(frame, peak_value);
+						if (peak_value > max_peak_value) {
+							max_peak_value = peak_value;
+							maxResRect = resRect;
+						}
+					}
+				}
+
+				//for (int i = -10; i < 10; ++i) {
+				//	tracker.setROI(resRect.x, resRect.y + 2 * i, frame);
+				//	resRect = tracker.updateWithoutTrain(frame, peak_value);
+				//	if (peak_value > max_peak_value) {
+				//		max_peak_value = peak_value;
+				//		maxResRect = resRect;
+				//	}
+				//}
+				std::cout << "SEARCH ROI PEAK_VALUE " << peak_value << std::endl;
+				resRect = maxResRect;
+				peak_value = max_peak_value;
+
 			}
 			std::cout << "PEAK VALUE: " << peak_value << std::endl;
+			if (noKF)
+				peak_value = 0.5;
 			//std::cout << "BEGIN " << resRect << std::endl;
 
 			searchROIRect = tracker._extracted_roi;			// 上一帧的跟踪框
@@ -344,9 +388,9 @@ int main(int argc, char *argv[])
 				angle = fabs(angle);
 				angle *= 180 / CV_PI;
 				const float threshold = 0.67f;
-				if (angle < 10 && len > threshold * searchROIRect.width)
+				if (angle < 45 && len > threshold * searchROIRect.width)
 					linesParallel.push_back(l);
-				else if (angle > 80 && len > threshold * searchROIRect.height)
+				else if (angle > 70 && len > threshold * searchROIRect.height)
 					linesVertical.push_back(l);
 				else
 					;
@@ -368,8 +412,9 @@ int main(int argc, char *argv[])
 			std::cout << "redect " << redetect << std::endl;
 
 
-			if (redetect == true && peak_value >= 0.3f) {
-				inRedetect = true;
+			if (redetect == true && peak_value >= 0.32f) {
+				inRedetect = true; 
+				noKF = true;
 				redetect = false;
 				KFInited = true;
 				//resRect = tracker.update(frame);
@@ -422,7 +467,8 @@ int main(int argc, char *argv[])
 				// 判断离遮挡直接的距离减小的方向与行驶的角度的关系，如果
 
 
-				if (parallelOcclused || verticalOcclused) {
+				//if (parallelOcclused || verticalOcclused) {
+				if (parallelOcclused) {
 					redetect = true;
 
 					KFInited = false;
@@ -490,8 +536,35 @@ int main(int argc, char *argv[])
 
 
 					}
-					else if (inBlueArea)
+					else if (inBlueArea) {
 						std::cout << "BLUE" << std::endl;
+						// 在指定区域进行检测
+						// 用点来表示偏移，可以改成文件的形式来记录，在地图中来标记像素点的个数
+						// 计算偏移
+						cv::Point2f offset(-15, 13);
+						cv::Point2f offsetInFrame = convertDistIntoFrame(offset, vecHigh[frameIndex / 25], f);
+						//std::cout << offsetInFrame << std::endl;
+
+						// 用于归一化，因为原图被缩小了2倍
+						offsetInFrame.x /= 2.0f;
+						offsetInFrame.y /= 2.0f;
+
+						// 计算出更新后的位置，即预测的位置
+						resRect.x += offsetInFrame.x;
+						resRect.y += offsetInFrame.y;
+						redetectRect = resRect;
+
+						float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
+						angle = fabs(angle);
+
+						//float angle = calcAngle(offsetInFrame);
+						float rotateFramesNum = sqrt(offsetInFrame.x * offsetInFrame.x + offsetInFrame.y * offsetInFrame.y) / sqrt(dx * dx + dy * dy);	// 需要多少帧，由距离直接除以速度
+						float anglePerFrame = angle / rotateFramesNum;	// 每一帧需要多少角度的
+
+																		// 以下来更新KCF
+						updateKCF(tracker, rotateFramesNum, reserveFrame, angle, reserveSearchROIRect, reserveROIRect);
+						tracker.setROI(resRect.x, resRect.y, frame);
+					}
 					else if (inBlackArea)
 						std::cout << "BLACK" << std::endl;
 					else if (inGreenArea)
@@ -607,7 +680,10 @@ int main(int argc, char *argv[])
 			break;
 		else if (toupper(ch) == 'P')
 			cv::waitKey(0);
+
+		//writer << frame;
 	}
+	//writer.release();
 
 	return 0;
 }
