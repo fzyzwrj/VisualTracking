@@ -2,6 +2,9 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <string>
+
+#include <direct.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -74,44 +77,86 @@ static void onMouse(int event, int x, int y, int flag, void *)
 	}
 }
 
+//int main(int argc, char *argv[])
+//{
+//	KCFTracker tracker(true, true, false, false);
+//	const std::string dirFilename("C:\\resources\\res\\rotate_2\\");
+//	const int imgTotal = 20;
+//
+//
+//	cv::namedWindow(frameWinName);
+//	cv::moveWindow(frameWinName, 0, 0);
+//	cv::setMouseCallback(frameWinName, onMouse);
+//
+//
+//	for (int i = 0; i < imgTotal; ++i) {
+//		std::string imgFilename = dirFilename + std::to_string(i) + "_rotate.jpg";
+//		frame = cv::imread(imgFilename);
+//		assert(frame.data);
+//		cv::resize(frame, frame, cv::Size(2048, 1080));
+//
+//		// 是否重新跟踪目标
+//		if (i == 0) {
+//			cv::imshow(frameWinName, frame);
+//			cv::waitKey(0);
+//			tracker.init(initRect, frame);
+//			cv::rectangle(frame, initRect, RED, 1, 8);
+//		}
+//		else {
+//			float peak_value = 0.0f;
+//			tracker.setROI(initRect.x, initRect.y, frame);
+//			cv::Rect resRect = tracker.updateWithoutTrain(frame, peak_value);
+//			tracker.setROI(initRect.x, initRect.y, frame);
+//			std::cout << peak_value << std::endl;
+//			//tracker.updateTrain(frame);
+//			cv::rectangle(frame, resRect, GREEN);
+//		}
+//		cv::imshow(frameWinName, frame);
+//		cv::waitKey(0);
+//	}
+//}
+
+
+
+
+static void help(void)
+{
+	std::cout << "根据轨迹文件，导出对应的跟踪目标\n"
+		"getFrame.exe xxx.avi inputdir 150 outputdir 1\n"
+		"1. xxx.avi 输入视频文件\n"
+		"2. inputdir 输入的轨迹文件夹\n"
+		"3. 150 文件的个数\n"
+		"4. outputdir 输出文件夹\n"
+		"5. 1 从第几个文件开始"
+		<< std::endl;
+
+}
 int main(int argc, char *argv[])
 {
-	KCFTracker tracker(true, true, false, false);
-	const std::string dirFilename("C:\\resources\\res\\rotate_2\\");
-	const int imgTotal = 20;
-
-
-	cv::namedWindow(frameWinName);
-	cv::moveWindow(frameWinName, 0, 0);
-	cv::setMouseCallback(frameWinName, onMouse);
-
-
-	for (int i = 0; i < imgTotal; ++i) {
-		std::string imgFilename = dirFilename + std::to_string(i) + "_rotate.jpg";
-		frame = cv::imread(imgFilename);
-		assert(frame.data);
-		cv::resize(frame, frame, cv::Size(2048, 1080));
-
-		// 是否重新跟踪目标
-		if (i == 0) {
-			cv::imshow(frameWinName, frame);
-			cv::waitKey(0);
-			tracker.init(initRect, frame);
-			cv::rectangle(frame, initRect, RED, 1, 8);
-		}
-		else {
-			float peak_value = 0.0f;
-			tracker.setROI(initRect.x, initRect.y, frame);
-			cv::Rect resRect = tracker.updateWithoutTrain(frame, peak_value);
-			tracker.setROI(initRect.x, initRect.y, frame);
-			std::cout << peak_value << std::endl;
-			//tracker.updateTrain(frame);
-			cv::rectangle(frame, resRect, GREEN);
-		}
-		cv::imshow(frameWinName, frame);
-		cv::waitKey(0);
+	if (argc != 6) {
+		help();
+		return -1;
 	}
+
+	//const std::string videoFilename = "G:\\resources\\videos\\DJI_0001.MOV";
+	const std::string videoFilename(argv[1]);
+	//const std::string dirName = "G:\\resources\\videos\\res\\";
+	const std::string dirName(argv[2]);
+	int fileTotal = atoi(argv[3]);
+	CStr outputDir(argv[4]);
+	int startIndex = atoi(argv[5]);
+
+	for (int i = startIndex; i <= fileTotal; ++i) {
+		const std::string posFilename = dirName + "/" + std::to_string(i) + ".txt";
+		std::vector<cv::Rect> vecTrackpos;
+		std::vector<int> vecFrameIndex;
+		getTrackPos(posFilename, vecTrackpos, vecFrameIndex);
+		//getFramesByPos(videoFilename, vecTrackpos, vecFrameIndex, outputDir + "\\video_" + std::to_string(i));
+		getFramesByRandom(videoFilename, vecTrackpos, vecFrameIndex, outputDir + "\\video_" + std::to_string(i));
+	}
+	return 0;
 }
+
 
 int main1(int argc, char *argv[])
 {

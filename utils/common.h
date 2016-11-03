@@ -2,29 +2,71 @@
 #ifndef COMMON_H__
 #define COMMON_H__
 
+#include <cstdio>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <assert.h>
+
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
-#include <fstream>
+#include <vector>
+#include <list>
+#include <map>
+#include <deque>
+#include <stack>
+#include <queue>
+#include <set>
+#include <functional>
+#include <algorithm>
+#include <iomanip>
+#include <iterator>
+
 #include <opencv2\opencv.hpp>
-#include "common.h"
 
-
+#include <direct.h>
+// 导出符号
 #define MY_EXPORT __declspec(dllexport)
 
+// ASSERT
+#define MY_ASSERT(expr)	(void)((expr) || (My_assert(#expr, __FUNCTION__, __FILE__, __LINE__), 0))
+
+inline void My_assert(const char *expr, const char *function, const char *file, int line)
+{
+	printf("Assertion failed: %s, function %s, file %s, line %d\n", expr, function, file, line);
+	abort();
+}
+
+// 显示图片，不带waitKey
 #define SHOW(img) \
 	do { \
 		cv::imshow(#img, img);\
 	} while (0)
 
-#define SHOW_WAIT(winName, img) \
+
+// 显示图片，带waitKey
+#define SHOW_WAIT(img) \
+	do {\
+		cv::imshow(#img, img);\
+		cv::waitKey(0);\
+	} while(0)
+
+
+// 显示视频帧，30FPS，Q退出，空格暂停
+#define SHOW_FRAME(winName, img) \
 	do {\
 		cv::imshow(winName, img);\
-		char ch = cv::waitKey(50);\
+		char ch = cv::waitKey(33);\
 		if (toupper(ch) == 'Q')\
 			exit(0);\
+		else if (toupper(ch) == ' ')\
+			cv::waitKey(0);\
 	} while (0)
 
+
+// 画出X字线
 #define DRAW_CROSS(image, center, color, d)\
 	do{\
 		cv::line(image, cv::Point(center.x - d, center.y - d), \
@@ -33,14 +75,14 @@
 			cv::Point(center.x + d, center.y - d), color, 4, CV_AA, 0); \
 	} while (0)
 
-// 对函数调用计时
+// 对函数调用计时，显示调用时间（毫秒）
 #define TEST_TIME(func)\
 	do {\
 		cv::TickMeter tm;\
 		tm.start();\
 		func;\
 		tm.stop();\
-		/*std::cout << "########## TIME: " << #func << " " << tm.getTimeMilli() << "ms" << std::endl;*/\
+		std::cout << "TIME: " << #func << " " << tm.getTimeMilli() << "ms" << std::endl;\
 	} while (0)
 
 
@@ -48,15 +90,30 @@ MY_EXPORT void getTrackPos(const std::string &posFilename, std::vector<cv::Rect>
 
 MY_EXPORT void scaleTrackPos(std::vector<cv::Rect> &vecTrackPos, const int scale);
 
+
+// 常用颜色
 const cv::Scalar RED(0, 0, 255);
 const cv::Scalar PINK(230, 130, 255);
 const cv::Scalar BLUE(255, 0, 0);
-const cv::Scalar LIGHTBLUE(255, 255, 160);
+const cv::Scalar LIGHT_BLUE(255, 255, 160);
+const cv::Scalar LIGHT_GREEN(144, 238, 144);
 const cv::Scalar GREEN(0, 255, 0);
 const cv::Scalar YELLOW(0, 255, 255);
 const cv::Scalar PURPLE(205, 0, 205);
 const cv::Scalar WHITE(255, 255, 255);
 const cv::Scalar BLACK(0, 0, 0);
+const cv::Scalar GRAY(190, 190, 190);
+
+
+// 常用别名
+typedef std::vector<int> vecI;
+typedef std::vector<float> vecF;
+typedef std::vector<double> vecD;
+typedef std::vector<std::string> vecS;
+typedef std::vector<cv::Mat> vecM;
+typedef const std::string CStr;
+typedef const cv::Mat CMat;
+
 
 
 // 模板只能放在H文件中了，如果放在common.h无法特化
@@ -97,6 +154,10 @@ float calcAngle(const cv::Point_<T> &V, const cv::Point_<U> &A, const cv::Point_
 	float angle = acos(cosTheta);
 	return angle;
 }
+
+
+
+
 
 
 

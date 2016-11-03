@@ -11,6 +11,7 @@ MY_EXPORT void getTrackPos(const std::string &posFilename, std::vector<cv::Rect>
 	assert(vecTrackPos.empty());
 	assert(vecFrameIndex.empty());
 	std::ifstream fin(posFilename);
+	std::cout << posFilename << std::endl;
 	assert(fin.is_open());
 	std::string line;
 

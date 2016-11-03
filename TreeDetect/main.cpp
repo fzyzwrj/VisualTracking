@@ -30,6 +30,29 @@ int detectImg()
 
 int main(int argc, char *argv[])
 {
+	double ratio = atof(argv[2]);
+	cv::Mat img = cv::imread(argv[1]);
+	cv::Mat resImg;
+
+	colorFilter(img, resImg);
+	int pixTotal = resImg.rows * resImg.cols;
+	int pixGreen = 0;
+	for (int r = 0; r < resImg.rows; ++r) {
+		for (int c = 0; c < resImg.cols; ++c) {
+			if (resImg.at<uchar>(r, c) == 255)
+				++pixGreen;
+		}
+	}
+	if (pixGreen < pixTotal * ratio) {
+		//cv::imwrite(std::string("green_") + argv[1], img);
+		//std::cout << true << std::endl;
+		std::cout << argv[1] << std::endl;
+	}
+	else {
+		//std::cout << false << std::endl;
+	}
+
+	return 0;
 	const std::string videoFilename = "G:\\resources\\videos\\DJI_0003.MOV";
 	cv::VideoCapture cap(videoFilename);
 	assert(cap.isOpened());
