@@ -18,4 +18,4 @@ aux_source_directory (../TreeDetect/src DIR_TREE_DETECT_SRCS)
 
 
 add_executable(Track main.cpp ${DIR_KALMAN_FILTER_SRCS} ${DIR_KCF_SRCS} ${DIR_LINE_DETECT_SRCS} ${DIR_TREE_DETECT_SRCS})
-target_link_libraries (Track ${OpenCV_LIBS} utils)
+target_link_libraries (Track ${OpenCV_LIBS})

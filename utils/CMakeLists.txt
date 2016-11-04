@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 2.8)
-find_package (OpenCV REQUIRED)
-aux_source_directory(. DIR_SRCS)
-add_library(utils SHARED ${DIR_SRCS})
+project (utils_test)
 
-set_target_properties(utils PROPERTIES output_name "utils")
+add_library(utils SHARED utils.cpp)
+#add_library(utils_opencv utils_opencv.cpp)
+
+add_executable(utils_test utils_test.cpp)
+target_link_libraries(utils_test utils)

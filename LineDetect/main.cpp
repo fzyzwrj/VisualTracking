@@ -16,7 +16,8 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 
 #include "LineDetect.h"
 #include "CMap.h"

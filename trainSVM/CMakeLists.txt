@@ -6,6 +6,8 @@ find_package (OpenCV REQUIRED)
 include_directories(liblinear)
 include_directories(liblinear/blas)
 include_directories(../utils)
+include_directories(../utils_opencv)
+
 
 aux_source_directory(. DIR_SRCS)
 aux_source_directory(liblinear LIBLINEAR)

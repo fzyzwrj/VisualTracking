@@ -1,6 +1,5 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
-//#include "common.h"
 #include "utils.h"
 #include "utils_opencv.h"
 #include "liblinear\linear.h"
@@ -11,8 +10,8 @@ static void print_null(const char *) {}
 
 //void test(const cv::Mat &model);
 void getData(CStr txtFilename, vecM &X, int total);
-void trainStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal, double C, double eps);
-cv::Mat trainSVM(const vecM &pX, const vecM &nX, int sT, double C, double bias = -1, double eps = 0.01, int maxTrainNum = 100000);
+void trainStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal);
+cv::Mat trainSVM(const vecM &pX, const vecM &nX, int sT, double C, double bias = -1, double eps = 0.1, int maxTrainNum = 100000);
 cv::Mat trainSVM(const cv::Mat &X1f, const vecI &Y, int sT, double C, double bias, double eps);
 void saveModel(CStr modelFilename, const cv::Mat &model)
 {
@@ -30,11 +29,11 @@ void makeFeature(const cv::Mat &mat, feature_node *x_space)
 	int i = 0;
 	const float* xData = mat.ptr<float>(i);
 	for (i = 0; i < DIM_FEA; ++i) {
-		x_space[i].index = i + 1;
+		x_space[i].index = i;
 		x_space[i].value = xData[i];
 	}
 	// bias > 0
-	x_space[i].index = DIM_FEA + 1;
+	x_space[i].index = i;
 	x_space[i++].value = 1;
 	x_space[i].index = -1;
 }
@@ -52,7 +51,7 @@ void testStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal)
 
 
 	std::cout << "Start to read model" << std::endl;
-	struct model *svmModel = load_model(modelFilename.c_str());
+	struct model *svmModel = load_model("model.dat");
 	std::cout << "Finish reading model" << std::endl;
 
 	const int DIM_FEA = pX[0].cols;
@@ -89,21 +88,14 @@ void getData(CStr txtFilename, vecM &X, int total)
 	MY_ASSERT(fin.is_open());
 	std::string line;
 	int i = 0;
-
 	std::cout << "Total: " << total << std::endl;
 	while (std::getline(fin, line)) {
 		if (line.find(".jpg") == std::string::npos)
 			continue;
-		cv::Mat img = cv::imread(line);
-		MY_ASSERT(img.data);
-		if (!img.data) {
-			std::cerr << "Error data." << std::endl;
-			exit(-1);
-		}
-		cv::resize(img, img, cv::Size(200, 200));
-
+		cv::Mat img = cv::imread(line, 0);
+		cv::resize(img, img, cv::Size(64, 64));
 		//SHOW_WAIT(img);
-		img = img.reshape(1, 1);	// 0表示通道数不变，行数变为1
+		img = img.reshape(0, 1);	// 0表示通道数不变，行数变为1
 		cv::Mat temp;
 		img.convertTo(temp, CV_32F);
 		//X.push_back(img);
@@ -115,7 +107,7 @@ void getData(CStr txtFilename, vecM &X, int total)
 			break;
 	}
 }
-void trainStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal, double C, double eps)
+void trainStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal)
 {
 	// 正负样本的特征
 	vecM pX, nX;
@@ -124,7 +116,7 @@ void trainStage(CStr posFilename, CStr negFilename, int posTotal, int negTotal, 
 	std::cout << "Start to get negtive data" << std::endl;
 	TIME(getData(negFilename, nX, negTotal));
 
-	cv::Mat model = trainSVM(pX, nX, L2R_L2LOSS_SVC, C, 1, eps);
+	cv::Mat model = trainSVM(pX, nX, L2R_L2LOSS_SVC, 1.0, 1);
 	std::cout << "Start to write model" << std::endl;
 	//cv::imwrite("model.Mat", model);
 	saveModel("model.xml", model);
@@ -149,7 +141,7 @@ cv::Mat trainSVM(const vecM &pX, const vecM &nX, int sT, double C, double bias, 
 	
 	for (int i = 0; i < nTotal; ++i) {
 		nX[i].copyTo(X1f.row(i + pTotal));
-		Y[i + pTotal] = -1;
+		Y[i] = -1;
 	}
 	std::cout << "Finish reshape data" << std::endl;
 	return trainSVM(X1f, Y, sT, C, bias, eps);
@@ -211,7 +203,7 @@ cv::Mat trainSVM(const cv::Mat &X1f, const vecI &Y, int sT, double C, double bia
 	std::cout << "Start train..." << std::endl;
 	model *svmModel = NULL;
 	TIME(svmModel= train(&prob, &param));
-	save_model(modelFilename.c_str(), svmModel);
+	save_model("model.dat", svmModel);
 	std::cout << "Finish train" << std::endl;
 	cv::Mat wMat(1, prob.n, CV_64F, svmModel->w);
 	wMat.convertTo(wMat, CV_32F);
@@ -224,7 +216,7 @@ cv::Mat trainSVM(const cv::Mat &X1f, const vecI &Y, int sT, double C, double bia
 	return wMat;
 }
 
-static void help_test(void)
+static void help()
 {
 	std::cout << "Test SVM\n"
 		"test_svm.exe model.dat test_pos.txt 3333 test_neg.txt 4444\n"
@@ -234,58 +226,20 @@ static void help_test(void)
 		"4. test_neg.txt\n"
 		"5. 4444 用于测试的负样本的个数\n"
 		<< std::endl;
+
+
 }
 
-static void test(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
-	if (argc != 6) {
-		help_test();
+	if (argc != 9) {
+		help();
 		exit(-1);
 	}
 	modelFilename = argv[1];
 	int testPosTotal = atoi(argv[3]);
 	int testNegTotal = atoi(argv[5]);
 	testStage(argv[2], argv[4], testPosTotal, testNegTotal);
-}
 
-static void help_train_and_test(void)
-{
-	std::cout << "Train and test SVM\n"
-		"train_svm.exe modeld.dat train_pos.txt 1111 train_neg.txt 2222 test_pos.txt 3333 test_neg.txt 4444 10 0.01\n"
-		"1. model.dat 保存与训练的模型文件名\n"
-		"2. train_pos.txt 正样本的文件，每一行是一个jpg的文件\n"
-		"3. 1111 用于训练的正样本的个数\n"
-		"4. train_neg.txt\n"
-		"5. 2222 用于训练的负样本的个数\n"
-		"6. test_pos.txt\n"
-		"7. 3333 用于测试的正样本的个数\n"
-		"8. test_neg.txt\n"
-		"9. 4444 用于测试的负样本的个数\n"
-		"10. 10 C的值，一般取1\n"
-		"11. 0.01 EPS的值，一般取0.1\n"
-		<< std::endl;
-}
-
-static void train_and_test(int argc, char *argv[])
-{
-	if (argc != 12) {
-		help_train_and_test();
-		exit(-1);
-	}
-	modelFilename = argv[1];
-	int trainPosTotal = atoi(argv[3]);
-	int trainNegTotal = atoi(argv[5]);
-	int testPosTotal = atoi(argv[7]);
-	int testNegTotal = atoi(argv[9]);
-	double C = atof(argv[10]);
-	double eps = atof(argv[11]);
-	trainStage(argv[2], argv[4], trainPosTotal, trainNegTotal, C, eps);
-	testStage(argv[6], argv[8], testPosTotal, testNegTotal);
-}
-
-int main(int argc, char *argv[])
-{
-	train_and_test(argc, argv);
-	//test(argc, argv);
 	return 0;
 }

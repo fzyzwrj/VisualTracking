@@ -7,7 +7,8 @@
 #include <opencv2\opencv.hpp>
 #include <opencv2\highgui.hpp>
 
-#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 #include "LineDetect.h"
 
 #define SHOW(img) \

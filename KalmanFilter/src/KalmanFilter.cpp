@@ -2,7 +2,8 @@
 
 #include "KalmanFilter.h"
 
-#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 
 CKalmanFilter::CKalmanFilter() : KF(stateTotal, measurementTotal, 0), state(stateTotal, 1, CV_32F), measurement(measurementTotal, 1, CV_32F)
 {

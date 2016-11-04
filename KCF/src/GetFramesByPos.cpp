@@ -11,7 +11,8 @@
 #include "kcftracker.hpp"
 
 #include <direct.h>
-#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 #include "GetTrackingPosTxt.h"
 
 

@@ -8,8 +8,11 @@ if (NOT WIN32)
 	ADD_DEFINITIONS("-std=c++0x -O3")
 endif (NOT WIN32)
 
+include_directories (../utils)
+include_directories (../utils_opencv)
+
 include_directories(./src)
 aux_source_directory(./src DIR_SRCS)
 
 add_executable(KCF main.cpp ${DIR_SRCS})
-target_link_libraries (KCF ${OpenCV_LIBS} utils)
+target_link_libraries (KCF ${OpenCV_LIBS})

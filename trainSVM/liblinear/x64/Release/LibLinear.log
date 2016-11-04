@@ -1,8 +1,0 @@
-﻿  daxpy.c
-  ddot.c
-  dnrm2.c
-  dscal.c
-  train.c
-  linear.cpp
-  tron.cpp
-  LibLinear.vcxproj -> C:\Users\Administrator\Documents\Visual Studio 2015\Projects\BingObjectnessCVPR14\BingObjectnessCVPR14\x64\Release\LibLinear.lib

@@ -8,8 +8,10 @@
 #include <cassert>
 #include <opencv2/opencv.hpp>
 
-#include "common.h"
 #include "KalmanFilter.h"
+
+#include "utils.h"
+#include "utils_opencv.h"
 
 int main()
 {
@@ -46,7 +48,8 @@ int main()
 		DRAW_CROSS(imgBG, measurePt, GREEN, 3);
 		DRAW_CROSS(imgBG, filterPt, BLUE, 3);
 		//DRAW_CROSS(imgBG, statePt, YELLOW, 3);
-		SHOW_WAIT("imgBG", imgBG);
+		SHOW_FRAME("bg", imgBG);
+		//SHOW_WAIT("imgBG", imgBG);
 	}
 
 	for (;;) {
@@ -57,7 +60,8 @@ int main()
 
 		imgBG = cv::Scalar::all(0);
 		DRAW_CROSS(imgBG, filterPt, cv::Scalar(255, 0, 0), 3);
-		SHOW_WAIT("imgBG", imgBG);
+		//SHOW_WAIT("imgBG", imgBG);
+		SHOW_FRAME("bg", imgBG);
 	}
 
 	return 0;

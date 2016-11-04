@@ -11,7 +11,9 @@
 
 //#include "kcftracker.hpp"
 #include "GetFramesByPos.h"
-#include "common.h"
+//#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 #include "kcftracker.hpp"
 
 
@@ -247,7 +249,7 @@ int main1(int argc, char *argv[])
 					fout << " ###";
 				fout << std::endl;
 			}
-			SHOW_WAIT("DEMO", frame);
+			SHOW_FRAME("DEMO", frame);
 		}
 		fout.close();
 	}

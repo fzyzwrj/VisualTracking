@@ -5,7 +5,8 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <string>
 
-#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
 
 #include "TreeDetect.h"
 
