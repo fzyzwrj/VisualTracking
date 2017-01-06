@@ -6,22 +6,39 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "common.h"
+//#include "common.h"
+#include "utils.h"
+#include "utils_opencv.h"
+
 #include "kcftracker.hpp"
 #include "KalmanFilter.h"
 #include "TreeDetect.h"
 #include "LineDetect.h"
 #include "CMap.h"
+#include "linear.h"
+#include "MotionTargetDetect.h"
 static float f = 729.0f;
 
 
 
-template<typename T>
-float calcAngle(const cv::Point_<T> *pt)
+void makeFeature(const cv::Mat &img, feature_node *x_space)
 {
-	return 0.0f;
+	cv::Mat tmpImg;
+	cv::resize(img, tmpImg, cv::Size(200, 200));
+	tmpImg = img.reshape(1, 1);
+	cv::Mat tmp2Img;
+	tmpImg.convertTo(tmp2Img, CV_32F);
+	const int DIM_FEA = tmp2Img.cols;
+	const float *xData = tmp2Img.ptr<float>(0);
+	int i = 0;
+	for (i = 0; i < DIM_FEA; ++i) {
+		x_space[i].index = i + 1;
+		x_space[i].value = xData[i];
+	}
+	x_space[i].index = DIM_FEA + 1;
+	x_space[i].value = 1;
+	x_space[i].index = -1;
 }
-
 
 cv::Rect scaleRect(const cv::Rect &rect, float scale)
 {
@@ -179,7 +196,7 @@ static bool checkOcclused(const cv::Point2f &center, const std::vector<cv::Vec4i
 		cv::Point pt1(l[0], l[1]);
 		cv::Point pt2(l[2], l[3]);
 
-		float dist = calcDist(center, pt1, pt2);
+		double dist = calcDist(center, pt1, pt2);
 		if (dist < distThreshold)
 			++occlusedTotal;
 	}
@@ -261,6 +278,7 @@ int main(int argc, char *argv[])
 	cv::Rect reserveROIRect;
 	cv::Rect reserveSearchROIRect;
 	cv::Rect redetectRect;
+	cv::Mat lastFrame;	// 保存上一帧，用于运动检测
 
 	// 初始化Klaman Filter
 	CKalmanFilter KF;
@@ -288,16 +306,39 @@ int main(int argc, char *argv[])
 	//cv::VideoWriter writer("res.avi", CV_FOURCC('M', 'J', 'P', 'G'), 25.0f, cv::Size(2048, 1080));
 	//assert(writer.isOpened());
 
+	CStr svmPModelFilename("4000.dat");
+	CStr svmNModelFilename("5000.dat");
+
+	struct model *svmPModel = load_model(svmPModelFilename.c_str());
+	struct model *svmNModel = load_model(svmNModelFilename.c_str());
+	const int DIM_FEA = 200 * 200;
+	feature_node *x_space = new feature_node[DIM_FEA + 2];
+
+
 	for (;;) {
 		++frameIndex;
+		//lastFrame = frame;
+		frame.copyTo(lastFrame);
 		cap >> frame;
 		// 由于视频分辨率过大，需要适当缩小
-		TEST_TIME(cv::resize(frame, frame, cv::Size(2048, 1080)));
+		TIME(cv::resize(frame, frame, cv::Size(2048, 1080)));
 
 		// 是否重新跟踪目标
 		if (frameIndex == 0 || readyInitKCF) {
 			cv::imshow(frameWinName, frame);
 			cv::waitKey(0);
+			// resize initRec to square
+			//if (initRect.width < initRect.height) {
+			//	int gap = initRect.height - initRect.width;
+			//	initRect.x -= gap / 2;
+			//	initRect.width += gap;
+			//}
+			//else if (initRect.width > initRect.height) {
+			//	int gap = initRect.width - initRect.height;
+			//	initRect.y -= gap / 2;
+			//	initRect.height += gap;
+			//}
+
 			tracker.init(initRect, frame);
 			reserveFrame = frame.clone();
 			cv::rectangle(frame, initRect, RED, 1, 8);
@@ -320,7 +361,11 @@ int main(int argc, char *argv[])
 		}
 		else {
 			float peak_value = 0.0f;
-			TEST_TIME(resRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
+			TIME(resRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
+			makeFeature(frame(resRect & cv::Rect(0, 0, frame.cols, frame.rows)).clone(), x_space);
+			double labelP = predict(svmPModel, x_space);
+			double labelN = predict(svmNModel, x_space);
+			std::cout << labelP << " " << labelN << std::endl;
 			if (redetect && !noKF) {
 				resRect = redetectRect;
 				tracker.setROI(resRect.x, resRect.y, frame);
@@ -337,6 +382,14 @@ int main(int argc, char *argv[])
 						}
 					}
 				}
+				cv::Rect detectROIRect(resRect.x - resRect.width * 2, resRect.y - resRect.height * 2, resRect.width * 4, resRect.height * 4);
+				cv::Mat curDetectFrame, lastDetectFrame;
+				curDetectFrame = frame(detectROIRect).clone();
+				lastDetectFrame = lastFrame(detectROIRect).clone();
+				cv::Mat diffImg;
+				frameDiff(curDetectFrame, lastDetectFrame, diffImg);
+				SHOW(curDetectFrame); 
+				SHOW(diffImg);
 
 				//for (int i = -10; i < 10; ++i) {
 				//	tracker.setROI(resRect.x, resRect.y + 2 * i, frame);
@@ -361,17 +414,17 @@ int main(int argc, char *argv[])
 			// 树木检测，在原图中标记
 			cv::Mat searchROIImg = frame(searchROIRect & cv::Rect(0, 0, frame.cols, frame.rows));	// 不能超出原图
 			cv::Mat colorFilteredImg;
-			TEST_TIME(colorFilter(searchROIImg, colorFilteredImg));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，不到5ms
+			TIME(colorFilter(searchROIImg, colorFilteredImg));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，不到5ms
 			cv::Mat colorFilteredBGRImg;
 			cv::cvtColor(colorFilteredImg, colorFilteredBGRImg, CV_GRAY2BGR);
 			// 叠加在原图中
-			//TEST_TIME(add(searchROIImg, colorFilteredBGRImg, searchROIImg));
+			TIME(add(searchROIImg, colorFilteredBGRImg, searchROIImg));
 
 
 			// 直线检测
 			cv::Mat lineDetectedImg;
 			std::vector<cv::Vec4i> lines;
-			TEST_TIME(lineDetect(searchROIImg, lines));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，10ms左右
+			TIME(lineDetect(searchROIImg, lines));	// 时间根据跟踪尺寸决定，10~60ms，release模式下，10ms左右
 			drawLines(searchROIImg, lines);
 			//SHOW(lineDetectedImg);
 
@@ -383,7 +436,7 @@ int main(int argc, char *argv[])
 			for (const auto &l : lines) {
 				cv::Point pt1(l[0], l[1]);
 				cv::Point pt2(l[2], l[3]);
-				float angle = calcAngle(V, pt1, pt2);
+				float angle = calcAngle(V, pt1 - pt2);
 				float len = calcDist(pt1, pt2);
 				angle = fabs(angle);
 				angle *= 180 / CV_PI;
@@ -412,7 +465,7 @@ int main(int argc, char *argv[])
 			std::cout << "redect " << redetect << std::endl;
 
 
-			if (redetect == true && peak_value >= 0.32f) {
+			if (redetect == true && peak_value >= 0.35f) {
 				inRedetect = true; 
 				noKF = true;
 				redetect = false;
@@ -443,7 +496,7 @@ int main(int argc, char *argv[])
 
 				// 完全无遮挡，更新KCF
 				if (peak_value >= 0.45f) {
-					TEST_TIME(tracker.updateTrain(frame));
+					TIME(tracker.updateTrain(frame));
 					redetect = false;
 					KFInited = true;
 				}
@@ -491,7 +544,7 @@ int main(int argc, char *argv[])
 						resRect.y += offsetInFrame.y;
 						redetectRect = resRect;
 
-						float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
+						float angle = calcAngle(V, cv::Point2f(0, 0) - offsetInFrame);	// 这里的角度计算考虑到提前转弯
 						angle = fabs(angle);
 
 						//float angle = calcAngle(offsetInFrame);
@@ -554,7 +607,7 @@ int main(int argc, char *argv[])
 						resRect.y += offsetInFrame.y;
 						redetectRect = resRect;
 
-						float angle = calcAngle(V, cv::Point2f(0, 0), offsetInFrame);	// 这里的角度计算考虑到提前转弯
+						float angle = calcAngle(V, cv::Point2f(0, 0) - offsetInFrame);	// 这里的角度计算考虑到提前转弯
 						angle = fabs(angle);
 
 						//float angle = calcAngle(offsetInFrame);

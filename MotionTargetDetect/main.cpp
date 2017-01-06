@@ -498,11 +498,12 @@ int main(int argc, char *argv[])
 		cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
 			cv::Size(2 * erosionSz + 1, 2 * erosionSz + 1));
 		//cv::erode(frameDiff, frameDiff, element);
-		cv::morphologyEx(frameDiff, frameDiff, CV_MOP_OPEN, element);
+		cv::morphologyEx(frameDiff, frameDiff, CV_MOP_CLOSE, element);
 		//cv::dilate(frameDiff, frameDiff, element);
 		//cv::dilate(frameDiff, frameDiff, element);
 		cv::Mat elementDilate = cv::getStructuringElement(cv::MORPH_RECT,
-			cv::Size(8 * erosionSz + 1, 8 * erosionSz + 1));
+			cv::Size(6 * erosionSz + 1, 6 * erosionSz + 1));
+		cv::morphologyEx(frameDiff, frameDiff, CV_MOP_CLOSE, element);
 		cv::dilate(frameDiff, frameDiff, elementDilate);
 		cv::imshow("SHOW", frameDiff);
 		cv::imshow("SHOW_ORI", frame);

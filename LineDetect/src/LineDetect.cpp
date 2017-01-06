@@ -16,20 +16,108 @@
 		cv::imshow(#img, img);\
 	} while (0)
 
-
 #define MOVE_WIN(img) \
 	do {\
-		cv::moveWindow(#img, 400, 400);\
+		/*cv::moveWindow(#img, 400, 400);*/\
 	}while (0)
 
-static int g_edgeThresh = 30;
+static int g_edgeThresh = 30;	// 这个参数一般70比较适合
 static cv::Mat g_blurImg;
 static cv::Mat g_cannyImg;
 static cv::Mat g_houghPImg;
+
+static cv::Mat g_sobelxImg;
+static cv::Mat g_sobelyImg;
+
+cv::Mat getHistImg(const cv::MatND& hist, int &maxLoc)
+{
+	double maxVal = 0;
+	double minVal = 0;
+
+	//找到直方图中的最大值和最小值
+	cv::minMaxLoc(hist, &minVal, &maxVal, 0, 0);
+	int histSize = hist.rows;
+	cv::Mat histImg(histSize, histSize, CV_8U, cv::Scalar(255));
+	// 设置最大峰值为图像高度的90%
+	int hpt = static_cast<int>(0.9*histSize);
+
+	for (int h = 0; h < histSize; h++)
+	{
+		float binVal = hist.at<float>(h);
+		if (fabs(binVal - maxVal) < EPS)
+			maxLoc = h;
+		int intensity = static_cast<int>(binVal*hpt / maxVal);
+		line(histImg, cv::Point(h, histSize), cv::Point(h, histSize - intensity), cv::Scalar::all(0));
+	}
+
+	return histImg;
+}
+
+// 返回灰度值
+int calcHist(const cv::Mat &grayImg)
+{
+	const int channels[1] = { 0 };
+	const int histSize[1] = { 256 };
+	float hranges[2] = { 0, 255 };
+	const float *ranges[1] = { hranges };
+	cv::MatND hist;
+	cv::calcHist(&grayImg, 1, channels, cv::Mat(), hist, 1, histSize, ranges);
+	int maxLoc = 0;
+	cv::Mat histImg = getHistImg(hist, maxLoc);
+	std::cout << maxLoc << std::endl;
+	cv::Mat roadImg = cv::Mat::zeros(grayImg.size(), CV_8UC1);
+	for (int r = 0; r < roadImg.rows; ++r) {
+		for (int c = 0; c < roadImg.cols; ++c) {
+			if (abs(maxLoc - grayImg.at<uchar>(r, c)) < 25)
+				roadImg.at<uchar>(r, c) = 255;
+		}
+	}
+	SHOW(roadImg);
+
+	SHOW(histImg);
+	return 0;
+}
+
 void onCanny(int, void *)
 {
 	cv::Canny(g_blurImg, g_cannyImg, g_edgeThresh, 3 * g_edgeThresh);
-	SHOW(g_cannyImg);
+
+	/*cv::Mat exImg;
+	cv::Mat se(3, 3, CV_8U, cv::Scalar(1));
+	cv::morphologyEx(g_cannyImg, exImg, CV_MOP_CLOSE, se);
+	cv::morphologyEx(exImg, exImg, CV_MOP_OPEN, se);
+	cv::morphologyEx(exImg, exImg, CV_MOP_OPEN, se);
+	SHOW(exImg);*/
+	cv::Mat cannyContours;
+	//std::vector<cv::Vec4i> contours;
+	std::vector<std::vector<cv::Point>> contours;
+	std::vector<cv::Vec4i> hierarchy;
+	cv::findContours(g_cannyImg, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, cv::Point());
+
+	auto it = contours.begin();
+	while (it != contours.end()) {
+		auto rRect = cv::minAreaRect(*it);
+		double ratio = 1.0;
+		if (rRect.size.width < rRect.size.height)
+			ratio = rRect.size.height * 1.0 / rRect.size.width;
+		else
+			ratio = rRect.size.width * 1.0 / rRect.size.height;
+
+		if (ratio < 20 && rRect.size.area() < 25 * 50)
+			it = contours.erase(it);
+		else
+			++it;
+	}
+
+	cv::Mat drawImg = cv::Mat::zeros(g_cannyImg.size(), CV_8UC3);
+	cv::RNG rng(12345);
+	for (int i = 0; i < contours.size(); ++i) {
+		cv::Scalar color = cv::Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+		cv::drawContours(drawImg, contours, i, color, 2, 8, hierarchy, 0, cv::Point());
+	}
+
+	SHOW(drawImg);
+	SHOW(g_cannyImg); 
 	MOVE_WIN(g_cannyImg);
 	/// houghlines
 	//std::vector<cv::Vec2f> lines;
@@ -71,17 +159,34 @@ void lineDetectDetailed(const cv::Mat &srcImg, cv::Mat &houghPImg)
 	cv::cvtColor(srcImg, grayImg, cv::COLOR_BGR2GRAY);
 
 	//cv::GaussianBlur
-	//cv::blur(grayImg, g_blurImg, cv::Size(3, 3));
-	g_blurImg = grayImg.clone();
+	cv::blur(grayImg, g_blurImg, cv::Size(3, 3));
+	//g_blurImg = grayImg.clone();
 
 	static const int edgeThreshMax = 255;
 	g_cannyImg = g_blurImg.clone();
+	g_sobelxImg = g_blurImg.clone();
+	g_sobelyImg = g_blurImg.clone();
+
+	// OSTU
+	/*cv::Mat tmpImg;
+	cv::threshold(g_blurImg, tmpImg, 200, 255, CV_THRESH_OTSU);
+	SHOW(tmpImg);*/
+	cv::Sobel(g_blurImg, g_sobelxImg, CV_8UC1, 1, 0, 3, 1, cv::BORDER_DEFAULT);
+	cv::convertScaleAbs(g_sobelxImg, g_sobelxImg);
+	cv::Sobel(g_blurImg, g_sobelyImg, CV_8UC1, 0, 1, 3, 1, cv::BORDER_DEFAULT);
+	cv::convertScaleAbs(g_sobelyImg, g_sobelyImg);
+	SHOW(g_sobelxImg);
+	SHOW(g_sobelyImg);
+
 	cv::imshow("cannyImg", g_cannyImg);
 	cv::moveWindow("cannyImg", 0, 0);
 	cv::createTrackbar("cannyBar", "cannyImg", &g_edgeThresh, edgeThreshMax, onCanny);
 
 	cv::imshow("srcImg", srcImg);
-	//cv::waitKey(0);
+
+	calcHist(g_cannyImg);
+
+	cv::waitKey(0);
 	houghPImg = g_houghPImg;
 }
 
@@ -170,6 +275,7 @@ void parseGPSAndHighFromSRT(const std::string &SRTFilename, std::vector<cv::Poin
 			vecHigh.push_back(high);
 		}
 	}
+
 	if (!saveFilename.empty()) {
 		std::ofstream fout(saveFilename);
 		assert(fout.is_open());

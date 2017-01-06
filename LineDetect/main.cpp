@@ -51,7 +51,7 @@ void test_mark_GPS()
 	//m.show();
 	cv::waitKey(0);
 }
-int main(int argc, char *argv[])
+int main1(int argc, char *argv[])
 {
 	const std::string mapFilename = "G:\\MapTileDownload\\OutPut\\¹È¸èµØÍ¼_161020230531_L19\\¹È¸èµØÍ¼_161020230531.png";
 	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\¹È¸èµØÍ¼_161020230531_L19\\¹È¸èµØÍ¼_161020230531.txt";
@@ -80,20 +80,41 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int main1(int argc, char *argv[])
+
+int main(int argc, char *argv[])
 {
 	//const std::string filename = "G:\\resources\\videos\\foot_bridge\\2100.jpg";
 	//const std::string filename = "G:\\resources\\videos\\foot_bridge_next_pa\\1.jpg";
 	//const std::string filename = "C:\\Users\\Administrator\\Documents\\Visual Studio 2015\\Projects\\BingObjectnessCVPR14\\BingObjectnessCVPR14\\captureOcclusionVideo\\occlusion_video_42\\_add_border_40_105.jpg";
 	//const std::string filename = "C:\\resources\\res\\occlusion_frame\\occlusion_video_18\\_add_border_40_52.jpg";
-	const std::string filename = "C:\\resources\\imgs\\1.jpg";
-	cv::Mat srcImg = cv::imread(filename);
+	//const std::string filename = "C:\\resources\\imgs\\1.jpg";
+	CStr filename("G:\\resources\\videos\\overpass\\1563.jpg");
+	cv::Mat srcImg = cv::imread(filename, 0);
 	assert(srcImg.data);
-	cv::resize(srcImg, srcImg, cv::Size(512, 270));
+	cv::resize(srcImg, srcImg, cv::Size(2160, 1080));
 	//cv::resize(srcImg, srcImg, cv::Size(1024, 540));
 
+	std::vector<cv::Mat> vecMat;
+	srcImg = cv::imread("ori.jpg", 0);
+	freopen("res.txt", "a", stdout);
+	std::cout << srcImg << std::endl;
+	std::cout << "####" << std::endl;
+	cv::Mat img;
+	cv::cvtColor(srcImg, img, CV_BayerGB2BGR);
+	cv::split(img, vecMat);
+	for (int i = 0; i < vecMat.size(); ++i) {
+		cv::imshow(std::to_string(i), vecMat[i]);
+		std::cout << vecMat[i] << std::endl;
+		std::cout << "####" << std::endl;
+
+	}
+	cv::waitKey(0);
+
+	return 0;
 	cv::Mat houghPImg;
-	lineDetectDetailed(srcImg, houghPImg);
+	//cv::Mat ROIImg = srcImg(cv::Rect(200, 200, 500, 500));
+	cv::Mat ROIImg = srcImg(cv::Rect(1000, 500, 450, 500));
+	lineDetectDetailed(ROIImg, houghPImg);
 
 	return 0;
 }

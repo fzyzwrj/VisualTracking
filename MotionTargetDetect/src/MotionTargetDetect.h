@@ -1,9 +1,10 @@
 #pragma once
-#ifndef TREE_DETECT_H__
-#define TREE_DETECT_H__
+#ifndef MOTION_TARGET_DETECT_H__
+#define MOTION_TARGET_DETECT_H__
 
 #include <opencv2\opencv.hpp>
 
-// void colorFilter(const cv::Mat &srcImg, cv::Mat &dstImg);
+// 对img1, img2做帧间差分，返回二值图像
+ void frameDiff(const cv::Mat &img1, const cv::Mat &dimg2, cv::Mat &res);
 
-#endif /* TREE_DETECT_H__ */
+#endif /* MOTION_TARGET_DETECT_H__ */

@@ -1,6 +1,34 @@
-// #include <iostream>
-// #include <opencv2/opencv.hpp>
-// #include <opencv2/imgproc/imgproc.hpp>
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include "utils.h"
+#include "MotionTargetDetect.h"
+
+ void frameDiff(const cv::Mat &img1, const cv::Mat &img2, cv::Mat &diffImg)
+ {
+ 	MY_ASSERT(img1.size == img2.size && img1.type() == img2.type());
+	cv::Mat img1Gray, img2Gray;
+ 	if (img1.channels() == 3) {
+ 		cv::cvtColor(img1, img1Gray, CV_BGR2GRAY);
+ 		cv::cvtColor(img2, img2Gray, CV_BGR2GRAY);
+ 	}
+	else {
+		img1Gray = img1;
+		img2Gray = img2;
+	}
+ 	cv::absdiff(img1Gray, img2Gray, diffImg);
+ 	cv::threshold(diffImg, diffImg, 20, 255, CV_THRESH_BINARY);
+ 	const int erosionSz = 1;
+	cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
+			cv::Size(2 * erosionSz + 1, 2 * erosionSz + 1));
+	cv::morphologyEx(diffImg, diffImg, CV_MOP_OPEN, element);
+
+	cv::Mat elementDilate = cv::getStructuringElement(cv::MORPH_RECT,
+			cv::Size(8 * erosionSz + 1, 8 * erosionSz + 1));
+
+	cv::dilate(diffImg, diffImg, elementDilate);
+	cv::morphologyEx(diffImg, diffImg, CV_MOP_OPEN, element);
+ }
 
 // //#define SHOW(img) \
 // //	do { \

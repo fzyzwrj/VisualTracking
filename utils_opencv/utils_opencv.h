@@ -73,7 +73,7 @@ typedef const cv::Mat CMat;
 // 模板只能放在H文件中了，如果放在common.h无法特化
 
 template<typename T, typename U>
-inline double dist(const cv::Point_<T> &A, const cv::Point_<U> &B)
+inline double calcDist(const cv::Point_<T> &A, const cv::Point_<U> &B)
 {
 	//double x = (double)A.x - (double)B.x;
 	//double y = (double)A.y - (double)B.y;
@@ -85,7 +85,7 @@ inline double dist(const cv::Point_<T> &A, const cv::Point_<U> &B)
 
 // 计算点P到直线AB的距离，通过矢量方向得到
 template<typename T, typename U>
-inline double dist(const cv::Point_<T> &P, const cv::Point_<U> &A, const cv::Point_<U> &B)
+inline double calcDist(const cv::Point_<T> &P, const cv::Point_<U> &A, const cv::Point_<U> &B)
 {
 	double dAP = sqrt((P.x - A.x) * (P.x - A.x) + (P.y - A.y) * (P.y - A.y));
 	double dAB = sqrt((B.x - A.x) * (B.x - A.x) + (B.y - A.y) * (B.y - A.y));

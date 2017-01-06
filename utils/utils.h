@@ -77,4 +77,8 @@ typedef std::vector<double> vecD;
 typedef std::vector<std::string> vecS;
 typedef const std::string CStr;
 
+#define Malloc(type, n) ((type *)malloc(sizeof(type) * n))
+
+const double EPS = 1e-7;
+
 #endif /* COMMON_H__ */
