@@ -1,3 +1,0 @@
-C:/3rdParty/source/VisualTracking/Track/CMakeFiles/KCF.dir
-C:/3rdParty/source/VisualTracking/Track/CMakeFiles/ALL_BUILD.dir
-C:/3rdParty/source/VisualTracking/Track/CMakeFiles/ZERO_CHECK.dir
