@@ -1,12 +1,6 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <algorithm>
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-//#include "common.h"
 #include "utils.h"
 #include "utils_opencv.h"
 
@@ -17,29 +11,33 @@
 #include "CMap.h"
 #include "linear.h"
 #include "MotionTargetDetect.h"
-static float f = 729.0f;
+
+// 无人机飞行高度比例尺因子，在从视频到地图的GPS时，需要用到
+const float f = 729.0f;
 
 
-
+// 根据LibLinear直接创建图像的灰度特征
 void makeFeature(const cv::Mat &img, feature_node *x_space)
 {
 	cv::Mat tmpImg;
 	cv::resize(img, tmpImg, cv::Size(200, 200));
-	tmpImg = img.reshape(1, 1);
-	cv::Mat tmp2Img;
-	tmpImg.convertTo(tmp2Img, CV_32F);
-	const int DIM_FEA = tmp2Img.cols;
-	const float *xData = tmp2Img.ptr<float>(0);
+	tmpImg = img.reshape(1, 1);	// reshape成一维
+	cv::Mat floatImg;	// 转换成float类型的mat
+	tmpImg.convertTo(floatImg, CV_32F);
+	const int DIM_FEA = floatImg.cols;	// 特征维度
+	const float *xData = floatImg.ptr<float>(0);
 	int i = 0;
 	for (i = 0; i < DIM_FEA; ++i) {
 		x_space[i].index = i + 1;
 		x_space[i].value = xData[i];
 	}
+	// 填充结尾标记
 	x_space[i].index = DIM_FEA + 1;
 	x_space[i].value = 1;
 	x_space[i].index = -1;
 }
 
+// 根据缩放比例scale缩放矩形框
 cv::Rect scaleRect(const cv::Rect &rect, float scale)
 {
 	cv::Point2f center(rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f);
@@ -129,7 +127,7 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 		//float rotateFramesNum = sqrt(offsetInFrame.x * offsetInFrame.x + offsetInFrame.y * offsetInFrame.y) / sqrt(dx * dx + dy * dy);	// 需要多少帧，由距离直接除以速度
 		//float anglePerFrame = angle / rotateFramesNum;	// 每一帧需要多少角度的
 
-														//cv::Point2f center(lastRect.width / 2.0f, lastRect.height / 2.0f);
+														//cv::Point2f center(preRect.width / 2.0f, preRect.height / 2.0f);
 		//center = cv::Point2f(searchROIRect.width / 2.0f, searchROIRect.height / 2.0f);
 
 		//// 为便于操作与性能上提升，直接将searchROI扩大为1.41倍
@@ -150,10 +148,6 @@ void updateKCF(KCFTracker &tracker, int times, const cv::Mat &oriFrameImg, float
 	}
 
 }
-
-
-
-
 
 
 // !!! 这个函数不能移到common.h中，不知道哪里有错误
@@ -208,7 +202,7 @@ static bool checkOcclused(const cv::Point2f &center, const std::vector<cv::Vec4i
 static cv::Rect initRect;
 // 视频帧
 static cv::Mat frame;
-// 初始化标记
+// 初始化标记，是否准备开始初始化KCF，如果true，则将进入onMouse选定厨师跟踪目标
 static bool readyInitKCF = true;
 
 static const std::string frameWinName = "SHOW";
@@ -245,11 +239,11 @@ static void onMouse(int event, int x, int y, int flag, void *)
 int main(int argc, char *argv[])
 {
 	//freopen("res.txt", "w", stdout);
-	const std::string videoFilename = "G:\\resources\\videos\\DJI_0002.MOV";
-	const std::string mapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.png";
-	const std::string mapMarkedFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
-	const std::string coordinateFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.txt";
-	const std::string SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
+	CStr videoFilename = "G:\\resources\\videos\\DJI_0002.MOV";
+	CStr mapFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.png";
+	CStr mapMarkedFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\mark.png";
+	CStr coordinateFilename = "G:\\MapTileDownload\\OutPut\\谷歌地图_161020230531_L19\\谷歌地图_161020230531.txt";
+	CStr SRTFilename = "G:\\resources\\videos\\DJI_0002.SRT";
 
 	// 初始化视频
 	cv::VideoCapture cap(videoFilename);
@@ -262,14 +256,12 @@ int main(int argc, char *argv[])
 	cv::setMouseCallback(frameWinName, onMouse);
 
 	// 初始化KCF
-	bool HOG = true;
-	bool FIXEDWINDOW = true;
-	bool MULTISCALE = false;
-	bool LAB = false;
-	KCFTracker tracker(HOG, FIXEDWINDOW, MULTISCALE, LAB);
-	cv::Rect resRect;	// 当前帧的跟踪结果
-	cv::Rect lastRect;	 // 上一帧的跟踪结果
-	cv::Rect searchROIRect;	 // 当前帧的搜索框，一般是目标框 x 2.5
+	KCFTracker tracker(true, true, true, false);
+
+	cv::Rect curRect;		// 当前帧的跟踪结果
+	cv::Rect preRect;		// 上一帧的跟踪结果
+	cv::Rect maxResRect;
+	cv::Rect searchROIRect;	// 当前帧的搜索框，一般是目标框 x 2.5
 	float dx = 0.0f;
 	float dy = 0.0f;
 	cv::Rect reserveRect;	// 保存用于旋转的跟踪结果，一般是当前帧的前3帧左右，用于遮挡时KCF的更新（直接将目标旋转）
@@ -324,25 +316,14 @@ int main(int argc, char *argv[])
 		TIME(cv::resize(frame, frame, cv::Size(2048, 1080)));
 
 		// 是否重新跟踪目标
-		if (frameIndex == 0 || readyInitKCF) {
+		if (frameIndex == 1 || readyInitKCF) {
 			cv::imshow(frameWinName, frame);
 			cv::waitKey(0);
-			// resize initRec to square
-			//if (initRect.width < initRect.height) {
-			//	int gap = initRect.height - initRect.width;
-			//	initRect.x -= gap / 2;
-			//	initRect.width += gap;
-			//}
-			//else if (initRect.width > initRect.height) {
-			//	int gap = initRect.width - initRect.height;
-			//	initRect.y -= gap / 2;
-			//	initRect.height += gap;
-			//}
 
 			tracker.init(initRect, frame);
 			reserveFrame = frame.clone();
 			cv::rectangle(frame, initRect, RED, 1, 8);
-			lastRect = initRect;
+			preRect = initRect;
 
 			// 初始化速度
 			frameIndexForInitKF = frameIndex;
@@ -361,28 +342,28 @@ int main(int argc, char *argv[])
 		}
 		else {
 			float peak_value = 0.0f;
-			TIME(resRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
-			makeFeature(frame(resRect & cv::Rect(0, 0, frame.cols, frame.rows)).clone(), x_space);
+			TIME(curRect = tracker.updateWithoutTrain(frame, peak_value));	// 仅跟踪，不训练
+			makeFeature(frame(curRect & cv::Rect(0, 0, frame.cols, frame.rows)).clone(), x_space);
 			double labelP = predict(svmPModel, x_space);
 			double labelN = predict(svmNModel, x_space);
 			std::cout << labelP << " " << labelN << std::endl;
 			if (redetect && !noKF) {
-				resRect = redetectRect;
-				tracker.setROI(resRect.x, resRect.y, frame);
+				curRect = redetectRect;
+				tracker.setROI(curRect.x, curRect.y, frame);
 
 				float max_peak_value = 0.0f;
-				cv::Rect maxResRect;
+				cv::Rect maxcurRect;
 				for (int r = -10; r <= 10; ++r) {
 					for (int c = 0; c < (10 - abs(r)) / 3; ++c) {
-						tracker.setROI(resRect.x + 2 * c, resRect.y + 2 * r, frame);
-						resRect = tracker.updateWithoutTrain(frame, peak_value);
+						tracker.setROI(curRect.x + 2 * c, curRect.y + 2 * r, frame);
+						curRect = tracker.updateWithoutTrain(frame, peak_value);
 						if (peak_value > max_peak_value) {
 							max_peak_value = peak_value;
-							maxResRect = resRect;
+							maxResRect = curRect;
 						}
 					}
 				}
-				cv::Rect detectROIRect(resRect.x - resRect.width * 2, resRect.y - resRect.height * 2, resRect.width * 4, resRect.height * 4);
+				cv::Rect detectROIRect(curRect.x - curRect.width * 2, curRect.y - curRect.height * 2, curRect.width * 4, curRect.height * 4);
 				cv::Mat curDetectFrame, lastDetectFrame;
 				curDetectFrame = frame(detectROIRect).clone();
 				lastDetectFrame = lastFrame(detectROIRect).clone();
@@ -392,22 +373,22 @@ int main(int argc, char *argv[])
 				SHOW(diffImg);
 
 				//for (int i = -10; i < 10; ++i) {
-				//	tracker.setROI(resRect.x, resRect.y + 2 * i, frame);
-				//	resRect = tracker.updateWithoutTrain(frame, peak_value);
+				//	tracker.setROI(curRect.x, curRect.y + 2 * i, frame);
+				//	curRect = tracker.updateWithoutTrain(frame, peak_value);
 				//	if (peak_value > max_peak_value) {
 				//		max_peak_value = peak_value;
-				//		maxResRect = resRect;
+				//		maxResRect = curRect;
 				//	}
 				//}
 				std::cout << "SEARCH ROI PEAK_VALUE " << peak_value << std::endl;
-				resRect = maxResRect;
+				curRect = maxResRect;
 				peak_value = max_peak_value;
 
 			}
 			std::cout << "PEAK VALUE: " << peak_value << std::endl;
 			if (noKF)
 				peak_value = 0.5;
-			//std::cout << "BEGIN " << resRect << std::endl;
+			//std::cout << "BEGIN " << curRect << std::endl;
 
 			searchROIRect = tracker._extracted_roi;			// 上一帧的跟踪框
 
@@ -470,11 +451,11 @@ int main(int argc, char *argv[])
 				noKF = true;
 				redetect = false;
 				KFInited = true;
-				//resRect = tracker.update(frame);
+				//curRect = tracker.update(frame);
 				float peak_value_redect = 0.0f;
 
-				resRect = tracker.updateWithoutTrain(frame, peak_value_redect);
-				std::cout << "resRect " << resRect << std::endl;
+				curRect = tracker.updateWithoutTrain(frame, peak_value_redect);
+				std::cout << "curRect " << curRect << std::endl;
 				tracker.updateTrain(frame);
 				std::cout << peak_value_redect << std::endl;
 				parallelOcclused = false;
@@ -490,8 +471,8 @@ int main(int argc, char *argv[])
 				peak_value = 0.30f;
 
 			if (peak_value >= 0.30f) {
-				dx = resRect.x - lastRect.x;
-				dy = resRect.y - lastRect.y;
+				dx = curRect.x - preRect.x;
+				dy = curRect.y - preRect.y;
 
 
 				// 完全无遮挡，更新KCF
@@ -507,7 +488,7 @@ int main(int argc, char *argv[])
 				if (KFInited) {
 					cv::Mat resMat;
 
-					KF.predictAndCorrect(lastRect.x * 1.0f, lastRect.y * 1.0f, dx, dy, resMat);
+					KF.predictAndCorrect(preRect.x * 1.0f, preRect.y * 1.0f, dx, dy, resMat);
 					KFPt.x = resMat.at<float>(0);
 					KFPt.y = resMat.at<float>(1);
 					//std::cout << "dx, dy " << resMat.at<float>(2) << " " << resMat.at<float>(3) << std::endl;
@@ -540,9 +521,9 @@ int main(int argc, char *argv[])
 						offsetInFrame.y /= 2.0f;
 
 						// 计算出更新后的位置，即预测的位置
-						resRect.x += offsetInFrame.x;
-						resRect.y += offsetInFrame.y;
-						redetectRect = resRect;
+						curRect.x += offsetInFrame.x;
+						curRect.y += offsetInFrame.y;
+						redetectRect = curRect;
 
 						float angle = calcAngle(V, cv::Point2f(0, 0) - offsetInFrame);	// 这里的角度计算考虑到提前转弯
 						angle = fabs(angle);
@@ -553,9 +534,9 @@ int main(int argc, char *argv[])
 
 																		// 以下来更新KCF
 						updateKCF(tracker, rotateFramesNum, reserveFrame, angle, reserveSearchROIRect, reserveROIRect);
-						tracker.setROI(resRect.x, resRect.y, frame);
+						tracker.setROI(curRect.x, curRect.y, frame);
 
-						//cv::Point2f center(lastRect.width / 2.0f, lastRect.height / 2.0f);
+						//cv::Point2f center(preRect.width / 2.0f, preRect.height / 2.0f);
 						//center = cv::Point2f(searchROIRect.width / 2.0f, searchROIRect.height / 2.0f);
 						//
 						//// 为便于操作与性能上提升，直接将searchROI扩大为1.41倍
@@ -603,9 +584,9 @@ int main(int argc, char *argv[])
 						offsetInFrame.y /= 2.0f;
 
 						// 计算出更新后的位置，即预测的位置
-						resRect.x += offsetInFrame.x;
-						resRect.y += offsetInFrame.y;
-						redetectRect = resRect;
+						curRect.x += offsetInFrame.x;
+						curRect.y += offsetInFrame.y;
+						redetectRect = curRect;
 
 						float angle = calcAngle(V, cv::Point2f(0, 0) - offsetInFrame);	// 这里的角度计算考虑到提前转弯
 						angle = fabs(angle);
@@ -616,7 +597,7 @@ int main(int argc, char *argv[])
 
 																		// 以下来更新KCF
 						updateKCF(tracker, rotateFramesNum, reserveFrame, angle, reserveSearchROIRect, reserveROIRect);
-						tracker.setROI(resRect.x, resRect.y, frame);
+						tracker.setROI(curRect.x, curRect.y, frame);
 					}
 					else if (inBlackArea)
 						std::cout << "BLACK" << std::endl;
@@ -631,11 +612,11 @@ int main(int argc, char *argv[])
 					cv::Mat predictMat;
 					KF.predict(predictMat);
 					KFPt = cv::Point2f(predictMat.at<float>(0), predictMat.at<float>(1));
-					resRect = cv::Rect(KFPt.x, KFPt.y, initRect.width, initRect.height);
+					curRect = cv::Rect(KFPt.x, KFPt.y, initRect.width, initRect.height);
 
 					////////////////////////////////////////////////////////////////////////// 增加直线判断
-					dx = resRect.x - lastRect.x;
-					dy = resRect.y - lastRect.y;
+					dx = curRect.x - preRect.x;
+					dy = curRect.y - preRect.y;
 					//std::cout << "dx, dy " << predictMat.at<float>(2) << " " << predictMat.at<float>(3) << std::endl;
 					//std::cout << "True dx, dy " << dx << " " << dy << std::endl;
 					//for (size_t i = 0; i < lines.size(); ++i) {
@@ -643,24 +624,24 @@ int main(int argc, char *argv[])
 					//////////////////////////////////////////////////////////////////////////
 				}
 
-				tracker.setROI(resRect.x, resRect.y, frame);
+				tracker.setROI(curRect.x, curRect.y, frame);
 
 			}
 
-			// std::cout << KFPt << " " << resRect.tl() << " " << calcDist(KFPt, resRect.tl()) << std::endl;
+			// std::cout << KFPt << " " << curRect.tl() << " " << calcDist(KFPt, curRect.tl()) << std::endl;
 
 			if (frameIndex - frameIndexForInitKF < 5) {
-				dxInitKF += resRect.x - lastRect.x;
-				dyInitKF += resRect.y - lastRect.y;
+				dxInitKF += curRect.x - preRect.x;
+				dyInitKF += curRect.y - preRect.y;
 			}
 			else if (frameIndex - frameIndexForInitKF == 5) {
 				dxInitKF /= 5;
 				dyInitKF /= 5;
-				KF.init(resRect.x, resRect.y, dxInitKF, dyInitKF);
+				KF.init(curRect.x, curRect.y, dxInitKF, dyInitKF);
 				KFInited = true;
 			}
-			reserveRect = lastRect;
-			lastRect = resRect;
+			reserveRect = preRect;
+			preRect = curRect;
 
 
 			//////////////////////////////////////////////////////////////////////////
@@ -673,7 +654,7 @@ int main(int argc, char *argv[])
 
 			}
 			if (mapROI.data) {
-				cv::Point2f targerPt(lastRect.x + lastRect.width / 2, lastRect.y + lastRect.height / 2);
+				cv::Point2f targerPt(preRect.x + preRect.width / 2, preRect.y + preRect.height / 2);
 				targerPt.x /= (frame.cols * 1.0f / mapROI.cols);
 				targerPt.y /= (frame.rows * 1.0f / mapROI.rows);
 				DRAW_CROSS(mapROI, targerPt, RED, 1);
@@ -712,7 +693,7 @@ int main(int argc, char *argv[])
 			//float angle = (28 + 90) / CV_PI;
 			//const float height = 100.0f;	// 飞行高度
 			//cv::Point2d center(frame.cols / 2, frame.rows / 2);
-			//cv::Point resPt(resRect.x + resRect.width / 2, resRect.y + resRect.height / 2);
+			//cv::Point resPt(curRect.x + curRect.width / 2, curRect.y + curRect.height / 2);
 			//cv::Point2d ptInFrame;
 			//// 用图片大小来归一化
 			//ptInFrame.x = (resPt.x - center.x) / frame.cols;
@@ -720,12 +701,12 @@ int main(int argc, char *argv[])
 			//cv::Point2d ptInMap;
 			
 
-			//std::cout << "END " << resRect << std::endl;
-			cv::rectangle(frame, resRect, GREEN);
+			//std::cout << "END " << curRect << std::endl;
+			cv::rectangle(frame, curRect, GREEN);
 			cv::rectangle(frame, searchROIRect, PINK);
 
 			if (KFInited)
-				cv::rectangle(frame, cv::Rect(KFPt.x, KFPt.y, resRect.width, resRect.height), YELLOW);
+				cv::rectangle(frame, cv::Rect(KFPt.x, KFPt.y, curRect.width, curRect.height), YELLOW);
 		}
 		cv::imshow(frameWinName, frame);
 		char ch = cv::waitKey(10);

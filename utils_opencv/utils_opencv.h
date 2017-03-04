@@ -34,7 +34,21 @@ typedef const cv::Mat CMat;
 #define SHOW(img) \
 	do { \
 		cv::imshow(#img, img);\
+		cv::imwrite(#img + std::string(".jpg"), img);\
 	} while (0)
+
+
+#ifdef DEBUG_SHOW
+#define D_SHOW(img) \
+	do { \
+		cv::imshow(#img, img);\
+	} while (0)
+#else
+#define D_SHOW(img) \
+	do { \
+		;\
+	} while (0)
+#endif
 
 
 // ÏÔÊ¾Í¼Æ¬£¬´øwaitKey
@@ -135,7 +149,5 @@ inline void scaleTrackPos(std::vector<cv::Rect> &vecTrackPos, const int scale)
 		trackPos.y /= scale;
 	}
 }
-
-
 
 #endif /* UTILS_OPENCV_H__ */

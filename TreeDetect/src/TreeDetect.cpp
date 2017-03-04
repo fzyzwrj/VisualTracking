@@ -1,78 +1,66 @@
+#include "TreeDetect.h"
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-
 #include "utils.h"
 #include "utils_opencv.h "
-#include "TreeDetect.h"
 
 const bool adaptive_minsv = true;  // 自适应颜色过滤阈值
 
-// const Vec3b target(15, 18, 152)
-// 过滤绿色
-bool checkGreenPixelHSV(const cv::Vec3b &color) {
+// 在HSV颜色空间判断给定的像素点是否是绿色，自适应饱和度和亮度
+inline bool checkGreenPixelHSV(const cv::Vec3b &color) {
+	// const Vec3b target(15, 18, 152)
 	// S和V的最小值由adaptive_minsv这个bool值判断
 	// 如果为true，则最小值取决于H值，按比例衰减
 	// 如果为false，则不再自适应，使用固定的最小值minabs_sv
-	// 默认为false
 	const float max_sv = 255;
-	//const float minref_sv = 64;
-	const float minref_sv = 45;
-
+	const float minref_sv = 35;
 	const float minabs_sv = 95;
-	//int min_h = 45;
-	//int max_h = 75;
-	const int min_h = 35;
-	const int max_h = 85;
+	const int min_h = 40;
+	const int max_h = 80;
 
-	float diff_h = float((max_h - min_h) / 2);
-	float avg_h = min_h + diff_h;
+	const float diff_h = float((max_h - min_h) / 2);
+	const float avg_h = min_h + diff_h;
 
-	int H = int(color[0]);  // 0-180
-	int S = int(color[1]);  // 0-255
-	int V = int(color[2]);  // 0-255
+	const int H = int(color[0]);  // 0-180
+	const int S = int(color[1]);  // 0-255
+	const int V = int(color[2]);  // 0-255
 
 	if (H > min_h && H < max_h) {
-		float Hdiff = fabs(H - avg_h);
+		const float Hdiff = fabs(H - avg_h);
+		const float Hdiff_p = float(Hdiff) / diff_h;	// 归一化
 
-		float Hdiff_p = float(Hdiff) / diff_h;
-
-		// S和V的最小值由adaptive_minsv这个bool值判断
-		// 如果为true，则最小值取决于H值，按比例衰减
-		// 如果为false，则不再自适应，使用固定的最小值minabs_sv
-
+		// 根据色调的纯度自适应降低亮度和饱和度
 		float min_sv = 0.0f;
 		if (true == adaptive_minsv)
-			min_sv = minref_sv - minref_sv / 2 * (1 - Hdiff_p);  // inref_sv - minref_sv / 2 * (1 - Hdiff_p)
+			min_sv = minref_sv - minref_sv / 2 * (1 - Hdiff_p);
 		else
-			min_sv = minabs_sv;  // add
+			min_sv = minabs_sv;
 
-		// 原来取值40
 		if ((S > min_sv + 30 && S < max_sv) && (V > min_sv && V < max_sv))
 			return true;
 	}
 	return false;
 }
 
+// 在RGB颜色空间判断给定的像素点是否是绿色
 inline bool checkGreenPixelBGR(const cv::Vec3b &color)
 {
 	const int b = color[0];
 	const int g = color[1];
 	const int r = color[2];
-	if (g > r + 18 && g > b + 18)
-		return true;
-	else
-		return false;
+	return (g > r + 18) && (g > b + 18);
 }
 
-// div 分块大小
-void colorReduce(const cv::Mat &srcImg, cv::Mat &dstImg, int div) {
-	assert(srcImg.data);
+// 暂时没用到：增大颜色的量化步长，较少彩色的种类，div是调整到的量化步长
+static void colorReduce(const cv::Mat &srcImg, cv::Mat &dstImg, int div) {
+	MY_ASSERT(srcImg.data);
 
 	dstImg = srcImg.clone();
-	int rows = dstImg.rows; // number of lines
-	int cols = dstImg.cols * dstImg.channels(); // elem per line
+	const int rows = dstImg.rows; // number of lines
+	const int cols = dstImg.cols * dstImg.channels(); // elem per line
+
 	for (int r = 0; r < dstImg.rows; ++r) {
 		uchar *p = dstImg.ptr<uchar>(r);
 		for (int c = 0; c < dstImg.cols; ++c)
@@ -80,53 +68,36 @@ void colorReduce(const cv::Mat &srcImg, cv::Mat &dstImg, int div) {
 	}
 }
 
-void colorFilter(const cv::Mat &srcImg, cv::Mat &dstImg) {
-	// RGB picture
-	assert(srcImg.data && srcImg.channels() == 3);
+// 输入BGR原图，进行绿色检测dstImg返回二值化后的图像，函数返回绿色的个数
+int colorFilter(const cv::Mat &srcImg, cv::Mat &dstImg) {
+	MY_ASSERT(srcImg.data && srcImg.channels() == 3);	// RGB picture
 
-	cv::Mat blurImg = srcImg.clone();
-	//cv::resize(blurImg, blurImg, cv::Size(512, 270));
-
-	//cv::GaussianBlur(srcImg, blurImg, cv::Size(9, 9), 0);
-
+	int greenTotal = 0;
 	/// HSV过滤绿色
 	cv::Mat hsvImg;
-	cv::cvtColor(blurImg, hsvImg, CV_BGR2HSV);
+	cv::cvtColor(srcImg, hsvImg, CV_BGR2HSV);
 	cv::Mat colorFiltedHSVImg(hsvImg.size(), CV_8UC1);
 	colorFiltedHSVImg = cv::Scalar::all(0);
 
 	for (int r = 0; r != hsvImg.rows; ++r) {
 		for (int c = 0; c != hsvImg.cols; ++c) {
-			cv::Vec3b color = blurImg.at<cv::Vec3b>(r, c);
-			if (checkGreenPixelHSV(color))
+			const cv::Vec3b color = hsvImg.at<cv::Vec3b>(r, c);
+			if (checkGreenPixelHSV(color)) {
 				colorFiltedHSVImg.at<uchar>(r, c) = 255;
+				++greenTotal;
+			}
 		}
 	}
-
-	/// BGR过滤绿色
-	cv::Mat colorFiltedRGBImg(srcImg.size(), CV_8UC1);
-	colorFiltedRGBImg = cv::Scalar::all(0);
-	for (int r = 0; r != srcImg.rows; ++r) {
-		for (int c = 0; c != srcImg.cols; ++c) {
-			cv::Vec3b color = srcImg.at<cv::Vec3b>(r, c);
-			if (checkGreenPixelBGR(color))
-				colorFiltedRGBImg.at<uchar>(r, c) = 255;
-		}
-	}
-
-	//SHOW(colorFiltedHSVImg);
-	//SHOW(colorFiltedRGBImg);
-	/// 组合两种颜色过滤的方法
-	cv::Mat maskImg = colorFiltedHSVImg | colorFiltedRGBImg;
+	D_SHOW(colorFiltedHSVImg);
 
 	/// 自适应形态学操作的尺寸大小
 	int filterSize = 30;	// 4k
-	if (blurImg.rows <= 256)
+	if (dstImg.rows <= 256)
 		filterSize /= 10;
-	else if (blurImg.rows <= 512)
-		filterSize /= 5;
-	else if (blurImg.rows <= 1024)
-		filterSize /= 2;
+	else if (dstImg.rows <= 512)
+		filterSize /= 8;
+	else if (dstImg.rows <= 1024)
+		filterSize /= 6;
 	else if (srcImg.rows <= 2048)
 		filterSize /= 1.5;
 
@@ -139,25 +110,21 @@ void colorFilter(const cv::Mat &srcImg, cv::Mat &dstImg) {
 	const int blurW = filterSize;
 	const int blurH = filterSize;
 
-	/// 平滑
+	/// 形态学操作，进行闭操作连通图像
 	cv::Mat openEleMat = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(morphW, morphH));
 	cv::Mat closeEleMat = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(morphW, morphH));
 	cv::Mat dilateEleMat = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(morphW, morphH));
 
-	cv::Mat morphImg;
-	//SHOW(maskImg);
-	cv::morphologyEx(maskImg, morphImg, cv::MORPH_CLOSE, closeEleMat);
-	
-	//SHOW(morphImg);
-	//cv::morphologyEx(morphImg, morphImg, cv::MORPH_OPEN, openEleMat);
+	cv::Mat morphImg;	// 形态学操作后的图像
+	cv::morphologyEx(colorFiltedHSVImg, morphImg, cv::MORPH_CLOSE, closeEleMat);
+	D_SHOW(morphImg);
 
-	blurImg = morphImg.clone();
+	/// 高斯模糊并二值化，平滑图像
+	cv::Mat blurImg;
 	cv::Size blurSize(blurW, blurH);
+	cv::GaussianBlur(morphImg, blurImg, blurSize, 0);
+	cv::threshold(blurImg, dstImg, 128, 255, cv::THRESH_BINARY);
+	D_SHOW(dstImg);
 
-	//cv::blur(blurImg, blurImg, blurSize);
-	cv::GaussianBlur(blurImg, blurImg, blurSize, 0);
-
-	/// 滤波后的二值化
-	cv::threshold(blurImg, blurImg, 128, 255, cv::THRESH_BINARY);
-	dstImg = blurImg.clone();
+	return greenTotal;
 }
